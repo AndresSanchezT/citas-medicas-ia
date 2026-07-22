@@ -1,0 +1,260 @@
+// Prisma schema — Sistema de Gestión de Citas Médicas
+// Proveedor: MySQL 8
+
+generator client {
+  provider     = "prisma-client"
+  output       = "../generated/prisma"
+  moduleFormat = "cjs"
+}
+
+datasource db {
+  provider = "mysql"
+}
+
+enum Role {
+  ADMIN
+  MEDICO
+  RECEPCIONISTA
+}
+
+enum AppointmentStatus {
+  PENDIENTE
+  CONFIRMADA
+  EN_CURSO
+  COMPLETADA
+  CANCELADA
+  NO_ASISTIO
+}
+
+enum SlotStatus {
+  DISPONIBLE
+  RESERVADO
+  BLOQUEADO
+}
+
+enum WaitlistStatus {
+  ESPERANDO
+  NOTIFICADO
+  ASIGNADO
+  EXPIRADO
+}
+
+enum WaitlistPriority {
+  NORMAL
+  URGENTE
+}
+
+enum AlertType {
+  RECORDATORIO_CITA
+  SOBRECARGA_AGENDA
+  INASISTENCIA_FRECUENTE
+  LISTA_ESPERA_LARGA
+  SLOT_LIBRE_DISPONIBLE
+}
+
+enum AlertRecipientType {
+  PACIENTE
+  MEDICO
+  ADMIN
+}
+
+enum AlertStatus {
+  PENDIENTE
+  ENVIADA
+  LEIDA
+  DESCARTADA
+}
+
+enum AlertChannel {
+  EMAIL
+  SISTEMA
+}
+
+model Specialty {
+  id      Int      @id @default(autoincrement())
+  nombre  String   @unique @db.VarChar(100)
+  doctors Doctor[]
+  waitlistEntries WaitlistEntry[]
+
+  @@map("specialties")
+}
+
+model Doctor {
+  id                 Int      @id @default(autoincrement())
+  nombres            String   @db.VarChar(100)
+  apellidos          String   @db.VarChar(100)
+  documentoIdentidad String   @unique @map("documento_identidad") @db.VarChar(20)
+  telefono           String?  @db.VarChar(20)
+  email              String?  @db.VarChar(150)
+  activo             Boolean  @default(true)
+  createdAt          DateTime @default(now()) @map("created_at")
+
+  specialtyId Int @map("specialty_id")
+  specialty   Specialty @relation(fields: [specialtyId], references: [id])
+
+  weeklyAvailability DoctorWeeklyAvailability[]
+  slots              AppointmentSlot[]
+  appointments       Appointment[]
+  waitlistEntries    WaitlistEntry[]
+  waitTimeHistory    WaitTimeHistory[]
+  dailyStats         DailyStats[]
+  user               User?
+
+  @@map("doctors")
+}
+
+model Patient {
+  id                 Int      @id @default(autoincrement())
+  nombres            String   @db.VarChar(100)
+  apellidos          String   @db.VarChar(100)
+  documentoIdentidad String   @unique @map("documento_identidad") @db.VarChar(20)
+  fechaNacimiento    DateTime? @map("fecha_nacimiento") @db.Date
+  telefono           String?  @db.VarChar(20)
+  email              String?  @db.VarChar(150)
+  direccion          String?  @db.VarChar(255)
+  activo             Boolean  @default(true)
+  createdAt          DateTime @default(now()) @map("created_at")
+
+  appointments    Appointment[]
+  waitlistEntries WaitlistEntry[]
+
+  @@map("patients")
+}
+
+model DoctorWeeklyAvailability {
+  id                   Int     @id @default(autoincrement())
+  doctorId             Int     @map("doctor_id")
+  diaSemana            Int     @map("dia_semana") // 0=domingo .. 6=sábado
+  horaInicio           String  @map("hora_inicio") @db.VarChar(5) // "08:00"
+  horaFin              String  @map("hora_fin") @db.VarChar(5)
+  duracionSlotMinutos  Int     @default(20) @map("duracion_slot_minutos")
+  activo               Boolean @default(true)
+
+  doctor Doctor @relation(fields: [doctorId], references: [id])
+
+  @@map("doctor_weekly_availability")
+}
+
+model AppointmentSlot {
+  id        Int        @id @default(autoincrement())
+  doctorId  Int        @map("doctor_id")
+  fecha     DateTime   @db.Date
+  horaInicio String    @map("hora_inicio") @db.VarChar(5)
+  horaFin   String     @map("hora_fin") @db.VarChar(5)
+  estado    SlotStatus @default(DISPONIBLE)
+
+  doctor       Doctor        @relation(fields: [doctorId], references: [id])
+  appointments Appointment[]
+
+  @@map("appointment_slots")
+}
+
+model Appointment {
+  id     Int               @id @default(autoincrement())
+  patientId Int            @map("patient_id")
+  doctorId  Int            @map("doctor_id")
+  // No @unique: un cupo cancelado vuelve a DISPONIBLE y puede reutilizarse en una
+  // cita nueva, por lo que un mismo slot puede tener varias citas a lo largo del tiempo
+  // (idealmente solo una activa a la vez, regla que aplica la capa de negocio).
+  slotId    Int?           @map("slot_id")
+  fecha     DateTime        @db.Date
+  horaInicio String         @map("hora_inicio") @db.VarChar(5)
+  horaFin    String         @map("hora_fin") @db.VarChar(5)
+  estado     AppointmentStatus @default(PENDIENTE)
+  motivoConsulta String?    @map("motivo_consulta") @db.VarChar(255)
+  notas          String?    @db.Text
+
+  horaLlegadaReal         DateTime? @map("hora_llegada_real")
+  horaAtencionInicioReal  DateTime? @map("hora_atencion_inicio_real")
+  horaAtencionFinReal     DateTime? @map("hora_atencion_fin_real")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  patient Patient          @relation(fields: [patientId], references: [id])
+  doctor  Doctor           @relation(fields: [doctorId], references: [id])
+  slot    AppointmentSlot? @relation(fields: [slotId], references: [id])
+
+  waitTimeHistory WaitTimeHistory?
+
+  @@map("appointments")
+}
+
+model WaitlistEntry {
+  id                          Int              @id @default(autoincrement())
+  patientId                   Int              @map("patient_id")
+  doctorId                    Int?             @map("doctor_id")
+  specialtyId                 Int?             @map("specialty_id")
+  fechaSolicitud              DateTime         @default(now()) @map("fecha_solicitud")
+  prioridad                   WaitlistPriority @default(NORMAL)
+  estado                      WaitlistStatus   @default(ESPERANDO)
+  tiempoEsperaEstimadoMinutos Int?             @map("tiempo_espera_estimado_minutos")
+  createdAt                   DateTime         @default(now()) @map("created_at")
+
+  patient   Patient    @relation(fields: [patientId], references: [id])
+  doctor    Doctor?    @relation(fields: [doctorId], references: [id])
+  specialty Specialty? @relation(fields: [specialtyId], references: [id])
+
+  @@map("waitlist_entries")
+}
+
+model Alert {
+  id                  Int                @id @default(autoincrement())
+  tipo                AlertType
+  destinatarioTipo    AlertRecipientType @map("destinatario_tipo")
+  destinatarioId      Int                @map("destinatario_id")
+  referenciaEntidadId Int?               @map("referencia_entidad_id")
+  mensaje             String             @db.Text
+  estado              AlertStatus        @default(PENDIENTE)
+  canal               AlertChannel       @default(SISTEMA)
+  fechaGeneracion     DateTime           @default(now()) @map("fecha_generacion")
+  fechaProgramadaEnvio DateTime?         @map("fecha_programada_envio")
+
+  @@map("alerts")
+}
+
+model WaitTimeHistory {
+  id                       Int      @id @default(autoincrement())
+  appointmentId            Int      @unique @map("appointment_id")
+  doctorId                 Int      @map("doctor_id")
+  diaSemana                Int      @map("dia_semana")
+  franjaHoraria            String   @map("franja_horaria") @db.VarChar(20)
+  tiempoEsperaMinutosReal  Int      @map("tiempo_espera_minutos_real")
+  fechaRegistro            DateTime @map("fecha_registro") @db.Date
+
+  appointment Appointment @relation(fields: [appointmentId], references: [id])
+  doctor      Doctor      @relation(fields: [doctorId], references: [id])
+
+  @@map("wait_time_history")
+}
+
+model DailyStats {
+  id                            Int      @id @default(autoincrement())
+  doctorId                      Int      @map("doctor_id")
+  fecha                         DateTime @db.Date
+  totalCitasProgramadas         Int      @default(0) @map("total_citas_programadas")
+  totalCitasCompletadas         Int      @default(0) @map("total_citas_completadas")
+  totalNoShow                   Int      @default(0) @map("total_no_show")
+  tiempoEsperaPromedioMinutos   Float?   @map("tiempo_espera_promedio_minutos")
+  tiempoEsperaMaxMinutos        Int?     @map("tiempo_espera_max_minutos")
+
+  doctor Doctor @relation(fields: [doctorId], references: [id])
+
+  @@unique([doctorId, fecha])
+  @@map("daily_stats")
+}
+
+model User {
+  id           Int      @id @default(autoincrement())
+  nombre       String   @db.VarChar(150)
+  email        String   @unique @db.VarChar(150)
+  passwordHash String   @map("password_hash") @db.VarChar(255)
+  rol          Role
+  doctorId     Int?     @unique @map("doctor_id")
+  activo       Boolean  @default(true)
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  doctor Doctor? @relation(fields: [doctorId], references: [id])
+
+  @@map("users")
+}

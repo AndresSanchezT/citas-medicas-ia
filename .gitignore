@@ -1,0 +1,17 @@
+# Word/Office lock files
+**/~$*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/*
+!.vscode/extensions.json
+.idea
+
+# Skills de IA auto-vendorizados por herramientas (ej. prisma skills sync);
+# se regeneran localmente, no son parte del código del proyecto.
+**/.claude/skills/
+**/.agents/skills/
+**/.windsurf/skills/
