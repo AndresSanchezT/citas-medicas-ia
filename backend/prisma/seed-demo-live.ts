@@ -57,7 +57,10 @@ async function main() {
     'Silvia Amasifuen Rojas': { horaInicio: '08:00', horaFin: '16:00', duracion: 15 },
   };
 
-  const SKIP_AVAILABILITY_AND_SLOTS = true; // ya se generaron en una corrida previa (2508 slots, 40 disponibilidades)
+  // Si ya existen cupos generados (ej. se corrió este script antes), no los regeneramos:
+  // /schedules/generate-slots recorre día por día con una consulta por cupo y puede tardar varios minutos.
+  const slotsExistentes: any[] = await call('GET', '/schedules/slots');
+  const SKIP_AVAILABILITY_AND_SLOTS = slotsExistentes.length > 0;
 
   if (!SKIP_AVAILABILITY_AND_SLOTS) {
     console.log('Creando disponibilidad semanal (lunes a viernes) para cada médico...');
