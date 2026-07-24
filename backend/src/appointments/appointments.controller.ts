@@ -16,6 +16,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { AppointmentsService } from './appointments.service';
 import { CreateAppointmentDto } from './dto/create-appointment.dto';
+import { CreateTriageDto } from './dto/create-triage.dto';
 import { RescheduleAppointmentDto } from './dto/reschedule-appointment.dto';
 
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -35,15 +36,28 @@ export class AppointmentsController {
     @CurrentUser() user: AuthenticatedUser,
     @Query('doctorId') doctorId?: string,
     @Query('patientId') patientId?: string,
+    @Query('specialtyId') specialtyId?: string,
     @Query('fecha') fecha?: string,
+    @Query('fechaDesde') fechaDesde?: string,
+    @Query('fechaHasta') fechaHasta?: string,
     @Query('estado') estado?: string,
   ) {
-    // Un médico solo puede ver su propia agenda, sin importar qué doctorId pida el cliente.
-    const doctorIdFiltro = user.rol === Role.MEDICO ? (user.doctorId ?? -1) : doctorId ? Number(doctorId) : undefined;
+    // Un médico solo puede listar su propia agenda (doctorId forzado al suyo), salvo cuando
+    // consulta el historial de un paciente puntual (patientId), donde sí puede ver todos sus
+    // médicos tratantes por continuidad de atención.
+    const doctorIdFiltro =
+      user.rol === Role.MEDICO && !patientId
+        ? (user.doctorId ?? -1)
+        : doctorId
+          ? Number(doctorId)
+          : undefined;
     return this.appointmentsService.findAll({
       doctorId: doctorIdFiltro,
       patientId: patientId ? Number(patientId) : undefined,
+      specialtyId: specialtyId ? Number(specialtyId) : undefined,
       fecha,
+      fechaDesde,
+      fechaHasta,
       estado,
     });
   }
@@ -88,5 +102,11 @@ export class AppointmentsController {
   @Roles(Role.ADMIN, Role.RECEPCIONISTA)
   reschedule(@Param('id', ParseIntPipe) id: number, @Body() dto: RescheduleAppointmentDto) {
     return this.appointmentsService.reschedule(id, dto);
+  }
+
+  @Post(':id/triage')
+  @Roles(Role.ADMIN, Role.RECEPCIONISTA)
+  upsertTriage(@Param('id', ParseIntPipe) id: number, @Body() dto: CreateTriageDto) {
+    return this.appointmentsService.upsertTriage(id, dto);
   }
 }

@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, Logger, NotFoundException } from '@nes
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateAvailabilityDto } from './dto/create-availability.dto';
+import { CreateTimeOffDto } from './dto/create-time-off.dto';
 import { UpdateAvailabilityDto } from './dto/update-availability.dto';
 
 const SLOT_GENERATION_DAYS_AHEAD = 30;
@@ -23,6 +24,18 @@ function addDays(date: Date, days: number): Date {
   const d = new Date(date);
   d.setDate(d.getDate() + days);
   return d;
+}
+
+// El loop de generateSlots construye `fecha` en medianoche LOCAL, mientras que los campos
+// @db.Date que devuelve Prisma (ej. DoctorTimeOff.fechaInicio/fechaFin) vuelven como
+// medianoche UTC. Para comparar "¿este día cae dentro del rango de descanso?" sin repetir
+// el bug de desfase de día por zona horaria, ambos se normalizan a una clave "YYYY-MM-DD"
+// usando los getters que corresponden a cómo se construyó cada Date (local vs UTC).
+function dateKeyLocal(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+function dateKeyUTC(d: Date): string {
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
 }
 
 @Injectable()
@@ -87,6 +100,7 @@ export class SchedulesService {
     const availabilities = await this.prisma.doctorWeeklyAvailability.findMany({
       where: { activo: true },
     });
+    const timeOff = await this.prisma.doctorTimeOff.findMany();
 
     let createdCount = 0;
     const today = new Date();
@@ -95,10 +109,16 @@ export class SchedulesService {
     for (let i = 0; i < daysAhead; i++) {
       const fecha = addDays(today, i);
       const diaSemana = fecha.getDay();
+      const fechaKey = dateKeyLocal(fecha);
 
       const dayAvailabilities = availabilities.filter((a) => a.diaSemana === diaSemana);
 
       for (const avail of dayAvailabilities) {
+        const enDescanso = timeOff.some(
+          (t) => t.doctorId === avail.doctorId && fechaKey >= dateKeyUTC(t.fechaInicio) && fechaKey <= dateKeyUTC(t.fechaFin),
+        );
+        if (enDescanso) continue;
+
         const start = toMinutes(avail.horaInicio);
         const end = toMinutes(avail.horaFin);
         const step = avail.duracionSlotMinutos;
@@ -143,6 +163,56 @@ export class SchedulesService {
       throw new BadRequestException('No se puede bloquear un cupo ya reservado');
     }
     return this.prisma.appointmentSlot.update({ where: { id }, data: { estado: 'BLOQUEADO' } });
+  }
+
+  // ---------- Días no laborables: descansos y vacaciones ----------
+
+  async createTimeOff(dto: CreateTimeOffDto) {
+    const fechaInicio = new Date(dto.fechaInicio);
+    const fechaFin = new Date(dto.fechaFin);
+    if (fechaInicio > fechaFin) {
+      throw new BadRequestException('fechaInicio debe ser anterior o igual a fechaFin');
+    }
+
+    const timeOff = await this.prisma.doctorTimeOff.create({
+      data: { doctorId: dto.doctorId, fechaInicio, fechaFin, motivo: dto.motivo },
+    });
+
+    // Los cupos ya generados y aún libres en ese rango dejan de tener sentido: se eliminan
+    // (no simplemente se bloquean) para que, si el descanso se cancela después, basten con
+    // volver a generar cupos para que reaparezcan.
+    await this.prisma.appointmentSlot.deleteMany({
+      where: { doctorId: dto.doctorId, estado: 'DISPONIBLE', fecha: { gte: fechaInicio, lte: fechaFin } },
+    });
+
+    // Las citas que ya estaban agendadas en ese rango no se tocan automáticamente: requieren
+    // reprogramación manual. Se devuelven para que la interfaz pueda advertir sobre ellas.
+    const citasEnConflicto = await this.prisma.appointment.findMany({
+      where: {
+        doctorId: dto.doctorId,
+        estado: { in: ['PENDIENTE', 'CONFIRMADA', 'EN_CURSO'] },
+        fecha: { gte: fechaInicio, lte: fechaFin },
+      },
+      include: { patient: true },
+      orderBy: [{ fecha: 'asc' }, { horaInicio: 'asc' }],
+    });
+
+    return { timeOff, citasEnConflicto };
+  }
+
+  findTimeOffByDoctor(doctorId: number) {
+    return this.prisma.doctorTimeOff.findMany({
+      where: { doctorId },
+      orderBy: { fechaInicio: 'desc' },
+    });
+  }
+
+  async deleteTimeOff(id: number) {
+    const existing = await this.prisma.doctorTimeOff.findUnique({ where: { id } });
+    if (!existing) {
+      throw new NotFoundException(`Registro de descanso ${id} no encontrado`);
+    }
+    await this.prisma.doctorTimeOff.delete({ where: { id } });
   }
 
   // ---------- Recomendación de horario por demanda (HU-06) ----------

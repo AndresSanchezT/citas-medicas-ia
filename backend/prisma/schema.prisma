@@ -70,6 +70,13 @@ enum AlertChannel {
   SISTEMA
 }
 
+enum TriagePrioridad {
+  LEVE
+  MODERADO
+  URGENTE
+  CRITICO
+}
+
 model Specialty {
   id      Int      @id @default(autoincrement())
   nombre  String   @unique @db.VarChar(100)
@@ -98,9 +105,23 @@ model Doctor {
   waitlistEntries    WaitlistEntry[]
   waitTimeHistory    WaitTimeHistory[]
   dailyStats         DailyStats[]
+  timeOff            DoctorTimeOff[]
   user               User?
 
   @@map("doctors")
+}
+
+model DoctorTimeOff {
+  id          Int      @id @default(autoincrement())
+  doctorId    Int      @map("doctor_id")
+  fechaInicio DateTime @map("fecha_inicio") @db.Date
+  fechaFin    DateTime @map("fecha_fin") @db.Date
+  motivo      String?  @db.VarChar(255)
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  doctor Doctor @relation(fields: [doctorId], references: [id])
+
+  @@map("doctor_time_off")
 }
 
 model Patient {
@@ -176,8 +197,29 @@ model Appointment {
   slot    AppointmentSlot? @relation(fields: [slotId], references: [id])
 
   waitTimeHistory WaitTimeHistory?
+  triage          Triage?
 
   @@map("appointments")
+}
+
+model Triage {
+  id                     Int              @id @default(autoincrement())
+  appointmentId          Int              @unique @map("appointment_id")
+  presionSistolica       Int?             @map("presion_sistolica")
+  presionDiastolica      Int?             @map("presion_diastolica")
+  frecuenciaCardiaca     Int?             @map("frecuencia_cardiaca")
+  temperatura            Float?
+  frecuenciaRespiratoria Int?             @map("frecuencia_respiratoria")
+  saturacionOxigeno      Int?             @map("saturacion_oxigeno")
+  peso                   Float?
+  talla                  Float?
+  prioridad              TriagePrioridad?
+  notas                  String?          @db.Text
+  registradoEn           DateTime         @default(now()) @map("registrado_en")
+
+  appointment Appointment @relation(fields: [appointmentId], references: [id])
+
+  @@map("triage")
 }
 
 model WaitlistEntry {

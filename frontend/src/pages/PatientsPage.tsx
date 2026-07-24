@@ -5,6 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { createPatient, deactivatePatient, fetchPatients, updatePatient, type Patient } from '../api/patients';
 import { Modal } from '../components/Modal';
+import { PatientHistoryModal } from '../components/PatientHistoryModal';
 import * as ui from '../components/ui';
 
 const patientSchema = z.object({
@@ -22,6 +23,7 @@ export function PatientsPage() {
   const [search, setSearch] = useState('');
   const [editing, setEditing] = useState<Patient | null>(null);
   const [showForm, setShowForm] = useState(false);
+  const [historyPatient, setHistoryPatient] = useState<Patient | null>(null);
 
   const { data: patients = [], isLoading } = useQuery({
     queryKey: ['patients', search],
@@ -115,6 +117,9 @@ export function PatientsPage() {
                 <td style={ui.td}>{p.telefono ?? '—'}</td>
                 <td style={ui.td}>{p.email ?? '—'}</td>
                 <td style={ui.td}>
+                  <button style={{ ...ui.secondaryButton, marginRight: 8 }} onClick={() => setHistoryPatient(p)}>
+                    Ver historial
+                  </button>
                   <button style={{ ...ui.secondaryButton, marginRight: 8 }} onClick={() => openEdit(p)}>
                     Editar
                   </button>
@@ -161,6 +166,10 @@ export function PatientsPage() {
             </button>
           </form>
         </Modal>
+      )}
+
+      {historyPatient && (
+        <PatientHistoryModal patient={historyPatient} onClose={() => setHistoryPatient(null)} />
       )}
     </div>
   );

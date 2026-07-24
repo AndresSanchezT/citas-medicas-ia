@@ -11,6 +11,13 @@ export const ESTADO_LABEL: Record<Appointment['estado'], string> = {
   NO_ASISTIO: 'No asistió',
 };
 
+export const PRIORIDAD_LABEL: Record<string, string> = {
+  LEVE: 'Leve',
+  MODERADO: 'Moderado',
+  URGENTE: 'Urgente',
+  CRITICO: 'Crítico',
+};
+
 // Debe reflejar los mismos @Roles() del backend (appointments.controller.ts):
 // check-in/cancel/no-show son tarea de recepción; iniciar/completar consulta, del médico.
 const PUEDE_RECEPCIONAR: Usuario['rol'][] = ['ADMIN', 'RECEPCIONISTA'];
@@ -25,6 +32,7 @@ interface AppointmentActionsProps {
   onComplete: (id: number) => void;
   onCancel: (id: number) => void;
   onNoShow: (id: number) => void;
+  onTriage?: (appointment: Appointment) => void;
 }
 
 export function AppointmentActions({
@@ -36,6 +44,7 @@ export function AppointmentActions({
   onComplete,
   onCancel,
   onNoShow,
+  onTriage,
 }: AppointmentActionsProps) {
   const puedeRecepcionar = PUEDE_RECEPCIONAR.includes(rol);
   const puedeAtender = PUEDE_ATENDER.includes(rol);
@@ -63,6 +72,8 @@ export function AppointmentActions({
   if (appointment.estado === 'CONFIRMADA') {
     return (
       <>
+        {puedeRecepcionar && onTriage &&
+          btn(appointment.triage ? 'Editar triaje' : 'Triaje', () => onTriage(appointment), '#7A3FA3')}
         {puedeAtender && btn('Iniciar consulta', () => onStart(appointment.id))}
         {puedeRecepcionar && btn('No-asistió', () => onNoShow(appointment.id), '#C0392B')}
         {puedeRecepcionar && btn('Cancelar', () => onCancel(appointment.id), '#999')}

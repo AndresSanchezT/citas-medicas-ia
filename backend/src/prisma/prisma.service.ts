@@ -13,6 +13,9 @@ function buildAdapter(): PrismaMariaDb {
     password: decodeURIComponent(dbUrl.password),
     database: dbUrl.pathname.replace(/^\//, ''),
     connectTimeout: 10000,
+    // MySQL 8 usa caching_sha2_password por defecto; sin esto, el driver no puede
+    // obtener la clave RSA del servidor en una conexión sin TLS (local/dev).
+    allowPublicKeyRetrieval: true,
   });
 }
 

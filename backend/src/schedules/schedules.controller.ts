@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   ParseIntPipe,
@@ -14,6 +15,7 @@ import { Roles } from '../auth/decorators/roles.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { CreateAvailabilityDto } from './dto/create-availability.dto';
+import { CreateTimeOffDto } from './dto/create-time-off.dto';
 import { UpdateAvailabilityDto } from './dto/update-availability.dto';
 import { SchedulesService } from './schedules.service';
 
@@ -68,5 +70,23 @@ export class SchedulesController {
   @Roles(Role.ADMIN, Role.RECEPCIONISTA)
   getRecommendations() {
     return this.schedulesService.getOccupancyRecommendation();
+  }
+
+  @Post('time-off')
+  @Roles(Role.ADMIN)
+  createTimeOff(@Body() dto: CreateTimeOffDto) {
+    return this.schedulesService.createTimeOff(dto);
+  }
+
+  @Get('time-off/doctor/:doctorId')
+  @Roles(Role.ADMIN, Role.RECEPCIONISTA, Role.MEDICO)
+  findTimeOffByDoctor(@Param('doctorId', ParseIntPipe) doctorId: number) {
+    return this.schedulesService.findTimeOffByDoctor(doctorId);
+  }
+
+  @Delete('time-off/:id')
+  @Roles(Role.ADMIN)
+  deleteTimeOff(@Param('id', ParseIntPipe) id: number) {
+    return this.schedulesService.deleteTimeOff(id);
   }
 }

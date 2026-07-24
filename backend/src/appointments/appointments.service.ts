@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateAppointmentDto } from './dto/create-appointment.dto';
+import { CreateTriageDto } from './dto/create-triage.dto';
 import { RescheduleAppointmentDto } from './dto/reschedule-appointment.dto';
 
 function franjaHorariaFrom(horaInicio: string): string {
@@ -61,15 +62,35 @@ export class AppointmentsService {
     });
   }
 
-  findAll(filters: { doctorId?: number; patientId?: number; fecha?: string; estado?: string }) {
+  findAll(filters: {
+    doctorId?: number;
+    patientId?: number;
+    specialtyId?: number;
+    fecha?: string;
+    fechaDesde?: string;
+    fechaHasta?: string;
+    estado?: string;
+  }) {
+    const fechaFiltro = filters.fecha
+      ? { fecha: new Date(filters.fecha) }
+      : filters.fechaDesde || filters.fechaHasta
+        ? {
+            fecha: {
+              ...(filters.fechaDesde ? { gte: new Date(filters.fechaDesde) } : {}),
+              ...(filters.fechaHasta ? { lte: new Date(filters.fechaHasta) } : {}),
+            },
+          }
+        : {};
+
     return this.prisma.appointment.findMany({
       where: {
         ...(filters.doctorId ? { doctorId: filters.doctorId } : {}),
         ...(filters.patientId ? { patientId: filters.patientId } : {}),
-        ...(filters.fecha ? { fecha: new Date(filters.fecha) } : {}),
+        ...(filters.specialtyId ? { doctor: { specialtyId: filters.specialtyId } } : {}),
+        ...fechaFiltro,
         ...(filters.estado ? { estado: filters.estado as any } : {}),
       },
-      include: { patient: true, doctor: true },
+      include: { patient: true, doctor: true, waitTimeHistory: true, triage: true },
       orderBy: [{ fecha: 'asc' }, { horaInicio: 'asc' }],
     });
   }
@@ -77,7 +98,7 @@ export class AppointmentsService {
   async findOne(id: number) {
     const appointment = await this.prisma.appointment.findUnique({
       where: { id },
-      include: { patient: true, doctor: true },
+      include: { patient: true, doctor: true, triage: true },
     });
     if (!appointment) {
       throw new NotFoundException(`Cita ${id} no encontrada`);
@@ -230,6 +251,15 @@ export class AppointmentsService {
           estado: 'PENDIENTE',
         },
       });
+    });
+  }
+
+  async upsertTriage(appointmentId: number, dto: CreateTriageDto) {
+    await this.findOne(appointmentId);
+    return this.prisma.triage.upsert({
+      where: { appointmentId },
+      create: { appointmentId, ...dto },
+      update: { ...dto },
     });
   }
 }

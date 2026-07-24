@@ -10,6 +10,24 @@ export type AppointmentStatus =
   | 'CANCELADA'
   | 'NO_ASISTIO';
 
+export type TriagePrioridad = 'LEVE' | 'MODERADO' | 'URGENTE' | 'CRITICO';
+
+export interface Triage {
+  id: number;
+  appointmentId: number;
+  presionSistolica: number | null;
+  presionDiastolica: number | null;
+  frecuenciaCardiaca: number | null;
+  temperatura: number | null;
+  frecuenciaRespiratoria: number | null;
+  saturacionOxigeno: number | null;
+  peso: number | null;
+  talla: number | null;
+  prioridad: TriagePrioridad | null;
+  notas: string | null;
+  registradoEn: string;
+}
+
 export interface Appointment {
   id: number;
   patientId: number;
@@ -22,12 +40,17 @@ export interface Appointment {
   motivoConsulta: string | null;
   patient: Patient;
   doctor: Doctor;
+  waitTimeHistory: { tiempoEsperaMinutosReal: number } | null;
+  triage: Triage | null;
 }
 
 export async function fetchAppointments(filters: {
   doctorId?: number;
   patientId?: number;
+  specialtyId?: number;
   fecha?: string;
+  fechaDesde?: string;
+  fechaHasta?: string;
   estado?: string;
 }): Promise<Appointment[]> {
   const { data } = await apiClient.get<Appointment[]>('/appointments', { params: filters });
@@ -66,5 +89,24 @@ export async function cancelAppointment(id: number): Promise<Appointment> {
 
 export async function markNoShow(id: number): Promise<Appointment> {
   const { data } = await apiClient.patch<Appointment>(`/appointments/${id}/no-show`);
+  return data;
+}
+
+export async function upsertTriage(
+  appointmentId: number,
+  input: {
+    presionSistolica?: number;
+    presionDiastolica?: number;
+    frecuenciaCardiaca?: number;
+    temperatura?: number;
+    frecuenciaRespiratoria?: number;
+    saturacionOxigeno?: number;
+    peso?: number;
+    talla?: number;
+    prioridad?: TriagePrioridad;
+    notas?: string;
+  },
+): Promise<Triage> {
+  const { data } = await apiClient.post<Triage>(`/appointments/${appointmentId}/triage`, input);
   return data;
 }

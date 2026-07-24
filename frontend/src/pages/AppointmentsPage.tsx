@@ -1,11 +1,13 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
-import { createAppointment, fetchAppointments } from '../api/appointments';
+import { createAppointment, fetchAppointments, type Appointment } from '../api/appointments';
 import { fetchPatients } from '../api/patients';
 import { fetchDoctors } from '../api/doctors';
+import { fetchSpecialties } from '../api/specialties';
 import { fetchSlots } from '../api/schedules';
 import { Modal } from '../components/Modal';
+import { TriageModal } from '../components/TriageModal';
 import { AppointmentActions, ESTADO_LABEL } from '../components/AppointmentActions';
 import { useAppointmentMutations } from '../hooks/useAppointmentMutations';
 import { useAuth } from '../context/AuthContext';
@@ -23,20 +25,28 @@ export function AppointmentsPage() {
   const { usuario } = useAuth();
   const [filtroEstado, setFiltroEstado] = useState('');
   const [filtroDoctor, setFiltroDoctor] = useState('');
+  const [filtroEspecialidad, setFiltroEspecialidad] = useState('');
+  const [filtroFechaDesde, setFiltroFechaDesde] = useState('');
+  const [filtroFechaHasta, setFiltroFechaHasta] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [selectedDoctorId, setSelectedDoctorId] = useState<number | null>(null);
+  const [triageAppointment, setTriageAppointment] = useState<Appointment | null>(null);
 
   const { data: appointments = [], isLoading } = useQuery({
-    queryKey: ['appointments', filtroEstado, filtroDoctor],
+    queryKey: ['appointments', filtroEstado, filtroDoctor, filtroEspecialidad, filtroFechaDesde, filtroFechaHasta],
     queryFn: () =>
       fetchAppointments({
         estado: filtroEstado || undefined,
         doctorId: filtroDoctor ? Number(filtroDoctor) : undefined,
+        specialtyId: filtroEspecialidad ? Number(filtroEspecialidad) : undefined,
+        fechaDesde: filtroFechaDesde || undefined,
+        fechaHasta: filtroFechaHasta || undefined,
       }),
   });
 
   const { data: patients = [] } = useQuery({ queryKey: ['patients', ''], queryFn: () => fetchPatients() });
   const { data: doctors = [] } = useQuery({ queryKey: ['doctors'], queryFn: fetchDoctors });
+  const { data: specialties = [] } = useQuery({ queryKey: ['specialties'], queryFn: fetchSpecialties });
   const { data: availableSlots = [] } = useQuery({
     queryKey: ['available-slots', selectedDoctorId],
     queryFn: () => fetchSlots(selectedDoctorId!),
@@ -76,19 +86,57 @@ export function AppointmentsPage() {
         </button>
       </div>
 
-      <div style={{ display: 'flex', gap: 12, marginBottom: '1rem' }}>
-        <select value={filtroEstado} onChange={(e) => setFiltroEstado(e.target.value)} style={{ ...ui.input, marginBottom: 0, width: 220 }}>
+      <div style={{ display: 'flex', gap: 12, marginBottom: '1rem', flexWrap: 'wrap', alignItems: 'center' }}>
+        <select value={filtroEstado} onChange={(e) => setFiltroEstado(e.target.value)} style={{ ...ui.input, marginBottom: 0, width: 200 }}>
           <option value="">Todos los estados</option>
           {Object.entries(ESTADO_LABEL).map(([k, v]) => (
             <option key={k} value={k}>{v}</option>
           ))}
         </select>
-        <select value={filtroDoctor} onChange={(e) => setFiltroDoctor(e.target.value)} style={{ ...ui.input, marginBottom: 0, width: 220 }}>
+        <select value={filtroEspecialidad} onChange={(e) => setFiltroEspecialidad(e.target.value)} style={{ ...ui.input, marginBottom: 0, width: 200 }}>
+          <option value="">Todas las especialidades</option>
+          {specialties.map((s) => (
+            <option key={s.id} value={s.id}>{s.nombre}</option>
+          ))}
+        </select>
+        <select value={filtroDoctor} onChange={(e) => setFiltroDoctor(e.target.value)} style={{ ...ui.input, marginBottom: 0, width: 200 }}>
           <option value="">Todos los médicos</option>
           {doctors.map((d) => (
             <option key={d.id} value={d.id}>{d.nombres} {d.apellidos}</option>
           ))}
         </select>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          Desde
+          <input
+            type="date"
+            value={filtroFechaDesde}
+            onChange={(e) => setFiltroFechaDesde(e.target.value)}
+            style={{ ...ui.input, marginBottom: 0, width: 160 }}
+          />
+        </label>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          Hasta
+          <input
+            type="date"
+            value={filtroFechaHasta}
+            onChange={(e) => setFiltroFechaHasta(e.target.value)}
+            style={{ ...ui.input, marginBottom: 0, width: 160 }}
+          />
+        </label>
+        {(filtroEstado || filtroDoctor || filtroEspecialidad || filtroFechaDesde || filtroFechaHasta) && (
+          <button
+            style={ui.secondaryButton}
+            onClick={() => {
+              setFiltroEstado('');
+              setFiltroDoctor('');
+              setFiltroEspecialidad('');
+              setFiltroFechaDesde('');
+              setFiltroFechaHasta('');
+            }}
+          >
+            Limpiar filtros
+          </button>
+        )}
       </div>
 
       <div style={ui.card}>
@@ -117,7 +165,9 @@ export function AppointmentsPage() {
                 <td style={ui.td}>{a.fecha.split('T')[0]}</td>
                 <td style={ui.td}>{a.horaInicio}</td>
                 <td style={ui.td}><span style={ui.badgeColor(a.estado)}>{ESTADO_LABEL[a.estado]}</span></td>
-                <td style={ui.td}><AppointmentActions appointment={a} rol={usuario!.rol} {...appointmentActions} /></td>
+                <td style={ui.td}>
+                  <AppointmentActions appointment={a} rol={usuario!.rol} onTriage={setTriageAppointment} {...appointmentActions} />
+                </td>
               </tr>
             ))}
           </tbody>
@@ -165,6 +215,10 @@ export function AppointmentsPage() {
             </button>
           </form>
         </Modal>
+      )}
+
+      {triageAppointment && (
+        <TriageModal appointment={triageAppointment} onClose={() => setTriageAppointment(null)} />
       )}
     </div>
   );

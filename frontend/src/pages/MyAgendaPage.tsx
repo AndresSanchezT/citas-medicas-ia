@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { fetchAppointments } from '../api/appointments';
 import { useAuth } from '../context/AuthContext';
-import { AppointmentActions, ESTADO_LABEL } from '../components/AppointmentActions';
+import { AppointmentActions, ESTADO_LABEL, PRIORIDAD_LABEL } from '../components/AppointmentActions';
 import { useAppointmentMutations } from '../hooks/useAppointmentMutations';
 import * as ui from '../components/ui';
 
@@ -63,22 +63,28 @@ export function MyAgendaPage() {
               <th style={ui.th}>Hora</th>
               <th style={ui.th}>Paciente</th>
               <th style={ui.th}>Motivo</th>
+              <th style={ui.th}>Triaje</th>
               <th style={ui.th}>Estado</th>
               <th style={ui.th}>Acciones</th>
             </tr>
           </thead>
           <tbody>
             {isLoading && (
-              <tr><td style={ui.td} colSpan={5}>Cargando...</td></tr>
+              <tr><td style={ui.td} colSpan={6}>Cargando...</td></tr>
             )}
             {!isLoading && appointments.length === 0 && (
-              <tr><td style={ui.td} colSpan={5}>Sin citas programadas para este día.</td></tr>
+              <tr><td style={ui.td} colSpan={6}>Sin citas programadas para este día.</td></tr>
             )}
             {appointments.map((a) => (
               <tr key={a.id}>
                 <td style={ui.td}>{a.horaInicio}</td>
                 <td style={ui.td}>{a.patient?.nombres} {a.patient?.apellidos}</td>
                 <td style={ui.td}>{a.motivoConsulta ?? '—'}</td>
+                <td style={ui.td}>
+                  {a.triage?.prioridad ? (
+                    <span style={ui.badgeColor(a.triage.prioridad)}>{PRIORIDAD_LABEL[a.triage.prioridad]}</span>
+                  ) : a.triage ? 'Sin clasificar' : '—'}
+                </td>
                 <td style={ui.td}><span style={ui.badgeColor(a.estado)}>{ESTADO_LABEL[a.estado]}</span></td>
                 <td style={ui.td}><AppointmentActions appointment={a} rol={usuario!.rol} {...appointmentActions} /></td>
               </tr>

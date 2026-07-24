@@ -70,6 +70,10 @@ export function badgeColor(estado: string): CSSProperties {
     LEIDA: '#999',
     ENVIADA: '#3E8E3E',
     DESCARTADA: '#999',
+    LEVE: '#3E8E3E',
+    MODERADO: '#B8860B',
+    URGENTE: '#D2691E',
+    CRITICO: '#C0392B',
   };
   const color = map[estado] ?? '#555';
   return {
