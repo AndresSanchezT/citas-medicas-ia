@@ -19,9 +19,11 @@ export const PRIORIDAD_LABEL: Record<string, string> = {
 };
 
 // Debe reflejar los mismos @Roles() del backend (appointments.controller.ts):
-// check-in/cancel/no-show son tarea de recepción; iniciar/completar consulta, del médico.
+// check-in es tarea exclusiva de recepción; iniciar/completar consulta, del médico;
+// cancelar y marcar no-asistió los puede hacer recepción o el propio médico de la cita.
 const PUEDE_RECEPCIONAR: Usuario['rol'][] = ['ADMIN', 'RECEPCIONISTA'];
 const PUEDE_ATENDER: Usuario['rol'][] = ['ADMIN', 'MEDICO'];
+const PUEDE_CANCELAR_O_NOSHOW: Usuario['rol'][] = ['ADMIN', 'RECEPCIONISTA', 'MEDICO'];
 
 interface AppointmentActionsProps {
   appointment: Appointment;
@@ -48,6 +50,7 @@ export function AppointmentActions({
 }: AppointmentActionsProps) {
   const puedeRecepcionar = PUEDE_RECEPCIONAR.includes(rol);
   const puedeAtender = PUEDE_ATENDER.includes(rol);
+  const puedeCancelarONoShow = PUEDE_CANCELAR_O_NOSHOW.includes(rol);
 
   const btn = (label: string, onClick: () => void, color?: string) => (
     <button
@@ -60,12 +63,14 @@ export function AppointmentActions({
   );
 
   if (appointment.estado === 'PENDIENTE') {
-    if (!puedeRecepcionar) return <span style={{ color: '#999' }}>Pendiente de check-in en recepción</span>;
+    if (!puedeRecepcionar && !puedeCancelarONoShow) {
+      return <span style={{ color: '#999' }}>Pendiente de check-in en recepción</span>;
+    }
     return (
       <>
-        {btn('Check-in', () => onCheckIn(appointment.id))}
-        {btn('No-asistió', () => onNoShow(appointment.id), '#C0392B')}
-        {btn('Cancelar', () => onCancel(appointment.id), '#999')}
+        {puedeRecepcionar && btn('Check-in', () => onCheckIn(appointment.id))}
+        {puedeCancelarONoShow && btn('No-asistió', () => onNoShow(appointment.id), '#C0392B')}
+        {puedeCancelarONoShow && btn('Cancelar', () => onCancel(appointment.id), '#999')}
       </>
     );
   }
@@ -75,8 +80,8 @@ export function AppointmentActions({
         {puedeRecepcionar && onTriage &&
           btn(appointment.triage ? 'Editar triaje' : 'Triaje', () => onTriage(appointment), '#7A3FA3')}
         {puedeAtender && btn('Iniciar consulta', () => onStart(appointment.id))}
-        {puedeRecepcionar && btn('No-asistió', () => onNoShow(appointment.id), '#C0392B')}
-        {puedeRecepcionar && btn('Cancelar', () => onCancel(appointment.id), '#999')}
+        {puedeCancelarONoShow && btn('No-asistió', () => onNoShow(appointment.id), '#C0392B')}
+        {puedeCancelarONoShow && btn('Cancelar', () => onCancel(appointment.id), '#999')}
       </>
     );
   }

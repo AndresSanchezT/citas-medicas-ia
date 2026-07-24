@@ -87,15 +87,15 @@ export class AppointmentsController {
   }
 
   @Patch(':id/cancel')
-  @Roles(Role.ADMIN, Role.RECEPCIONISTA)
-  cancel(@Param('id', ParseIntPipe) id: number) {
-    return this.appointmentsService.cancel(id);
+  @Roles(Role.ADMIN, Role.RECEPCIONISTA, Role.MEDICO)
+  cancel(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: AuthenticatedUser) {
+    return this.appointmentsService.cancel(id, user);
   }
 
   @Patch(':id/no-show')
-  @Roles(Role.ADMIN, Role.RECEPCIONISTA)
-  markNoShow(@Param('id', ParseIntPipe) id: number) {
-    return this.appointmentsService.markNoShow(id);
+  @Roles(Role.ADMIN, Role.RECEPCIONISTA, Role.MEDICO)
+  markNoShow(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: AuthenticatedUser) {
+    return this.appointmentsService.markNoShow(id, user);
   }
 
   @Patch(':id/reschedule')

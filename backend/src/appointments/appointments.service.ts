@@ -1,9 +1,19 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
+import { Role } from '../../generated/prisma/enums';
+import type { AuthenticatedUser } from '../auth/decorators/current-user.decorator';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateAppointmentDto } from './dto/create-appointment.dto';
 import { CreateTriageDto } from './dto/create-triage.dto';
 import { RescheduleAppointmentDto } from './dto/reschedule-appointment.dto';
+
+// Un médico solo puede cancelar o marcar no-asistió en sus propias citas; los demás
+// roles (ADMIN, RECEPCIONISTA) gestionan la agenda de cualquier médico.
+function verificarPropiaCita(appointment: { doctorId: number }, user: AuthenticatedUser) {
+  if (user.rol === Role.MEDICO && appointment.doctorId !== user.doctorId) {
+    throw new ForbiddenException('Solo puedes gestionar tus propias citas');
+  }
+}
 
 function franjaHorariaFrom(horaInicio: string): string {
   const hour = Number(horaInicio.split(':')[0]);
@@ -171,8 +181,9 @@ export class AppointmentsService {
     });
   }
 
-  async cancel(id: number) {
+  async cancel(id: number, user: AuthenticatedUser) {
     const appointment = await this.findOne(id);
+    verificarPropiaCita(appointment, user);
     if (appointment.estado === 'COMPLETADA' || appointment.estado === 'CANCELADA') {
       throw new BadRequestException(`No se puede cancelar una cita en estado ${appointment.estado}`);
     }
@@ -198,8 +209,9 @@ export class AppointmentsService {
     return updated;
   }
 
-  async markNoShow(id: number) {
+  async markNoShow(id: number, user: AuthenticatedUser) {
     const appointment = await this.findOne(id);
+    verificarPropiaCita(appointment, user);
     if (appointment.estado !== 'PENDIENTE' && appointment.estado !== 'CONFIRMADA') {
       throw new BadRequestException(`No se puede marcar como no-asistió una cita en estado ${appointment.estado}`);
     }
