@@ -64,13 +64,13 @@ export function AppointmentActions({
 
   if (appointment.estado === 'PENDIENTE') {
     if (!puedeRecepcionar && !puedeCancelarONoShow) {
-      return <span style={{ color: '#999' }}>Pendiente de check-in en recepción</span>;
+      return <span style={{ color: 'var(--text-muted)' }}>Pendiente de check-in en recepción</span>;
     }
     return (
       <>
         {puedeRecepcionar && btn('Check-in', () => onCheckIn(appointment.id))}
-        {puedeCancelarONoShow && btn('No-asistió', () => onNoShow(appointment.id), '#C0392B')}
-        {puedeCancelarONoShow && btn('Cancelar', () => onCancel(appointment.id), '#999')}
+        {puedeCancelarONoShow && btn('No-asistió', () => onNoShow(appointment.id), 'var(--color-critical)')}
+        {puedeCancelarONoShow && btn('Cancelar', () => onCancel(appointment.id), 'var(--text-muted)')}
       </>
     );
   }
@@ -78,16 +78,16 @@ export function AppointmentActions({
     return (
       <>
         {puedeRecepcionar && onTriage &&
-          btn(appointment.triage ? 'Editar triaje' : 'Triaje', () => onTriage(appointment), '#7A3FA3')}
+          btn(appointment.triage ? 'Editar triaje' : 'Triaje', () => onTriage(appointment), 'var(--color-violet)')}
         {puedeAtender && btn('Iniciar consulta', () => onStart(appointment.id))}
-        {puedeCancelarONoShow && btn('No-asistió', () => onNoShow(appointment.id), '#C0392B')}
-        {puedeCancelarONoShow && btn('Cancelar', () => onCancel(appointment.id), '#999')}
+        {puedeCancelarONoShow && btn('No-asistió', () => onNoShow(appointment.id), 'var(--color-critical)')}
+        {puedeCancelarONoShow && btn('Cancelar', () => onCancel(appointment.id), 'var(--text-muted)')}
       </>
     );
   }
   if (appointment.estado === 'EN_CURSO') {
-    if (!puedeAtender) return <span style={{ color: '#999' }}>En curso</span>;
-    return btn('Completar', () => onComplete(appointment.id), '#3E8E3E');
+    if (!puedeAtender) return <span style={{ color: 'var(--text-muted)' }}>En curso</span>;
+    return btn('Completar', () => onComplete(appointment.id), 'var(--color-good)');
   }
-  return <span style={{ color: '#999' }}>—</span>;
+  return <span style={{ color: 'var(--text-muted)' }}>—</span>;
 }

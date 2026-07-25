@@ -67,7 +67,7 @@ export function PatientHistoryModal({ patient, onClose }: PatientHistoryModalPro
                       {a.triage.prioridad && (
                         <div><span style={ui.badgeColor(a.triage.prioridad)}>{PRIORIDAD_LABEL[a.triage.prioridad]}</span></div>
                       )}
-                      <small style={{ color: '#666' }}>{triageSummary(a.triage)}</small>
+                      <small style={{ color: 'var(--text-secondary)' }}>{triageSummary(a.triage)}</small>
                     </>
                   ) : '—'}
                 </td>

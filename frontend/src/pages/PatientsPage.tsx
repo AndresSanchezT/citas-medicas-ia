@@ -124,7 +124,7 @@ export function PatientsPage() {
                     Editar
                   </button>
                   <button
-                    style={{ ...ui.secondaryButton, color: '#C0392B', borderColor: '#C0392B' }}
+                    style={{ ...ui.secondaryButton, color: 'var(--color-critical)', borderColor: 'var(--color-critical)' }}
                     onClick={() => deactivateMutation.mutate(p.id)}
                   >
                     Desactivar
@@ -141,22 +141,22 @@ export function PatientsPage() {
           <form onSubmit={handleSubmit((values) => saveMutation.mutate(values))}>
             <label>Nombres</label>
             <input {...register('nombres')} style={ui.input} />
-            {errors.nombres && <small style={{ color: 'crimson' }}>{errors.nombres.message}</small>}
+            {errors.nombres && <small style={{ color: 'var(--color-critical)' }}>{errors.nombres.message}</small>}
 
             <label>Apellidos</label>
             <input {...register('apellidos')} style={ui.input} />
-            {errors.apellidos && <small style={{ color: 'crimson' }}>{errors.apellidos.message}</small>}
+            {errors.apellidos && <small style={{ color: 'var(--color-critical)' }}>{errors.apellidos.message}</small>}
 
             <label>Documento de identidad</label>
             <input {...register('documentoIdentidad')} style={ui.input} />
-            {errors.documentoIdentidad && <small style={{ color: 'crimson' }}>{errors.documentoIdentidad.message}</small>}
+            {errors.documentoIdentidad && <small style={{ color: 'var(--color-critical)' }}>{errors.documentoIdentidad.message}</small>}
 
             <label>Teléfono</label>
             <input {...register('telefono')} style={ui.input} />
 
             <label>Email</label>
             <input {...register('email')} style={ui.input} />
-            {errors.email && <small style={{ color: 'crimson' }}>{errors.email.message}</small>}
+            {errors.email && <small style={{ color: 'var(--color-critical)' }}>{errors.email.message}</small>}
 
             <label>Dirección</label>
             <input {...register('direccion')} style={ui.input} />

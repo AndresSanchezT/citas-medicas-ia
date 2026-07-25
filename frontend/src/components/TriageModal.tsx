@@ -122,7 +122,7 @@ export function TriageModal({ appointment, onClose }: TriageModalProps) {
         <textarea {...register('notas')} style={{ ...ui.input, minHeight: 70 }} />
 
         {saveMutation.isError && (
-          <p style={{ color: 'crimson' }}>No se pudo guardar el triaje. Verifica los valores ingresados.</p>
+          <p style={{ color: 'var(--color-critical)' }}>No se pudo guardar el triaje. Verifica los valores ingresados.</p>
         )}
 
         <button type="submit" disabled={saveMutation.isPending} style={{ ...ui.primaryButton, width: '100%' }}>

@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { defaultRouteForRole } from '../utils/roleRoutes';
+import * as ui from '../components/ui';
 
 const loginSchema = z.object({
   email: z.string().email('Correo inválido'),
@@ -64,17 +65,17 @@ export function LoginPage() {
         alignItems: 'center',
         justifyContent: 'center',
         minHeight: '100vh',
-        fontFamily: 'system-ui, sans-serif',
-        background: '#F7F8FA',
+        background:
+          'radial-gradient(circle at 20% 20%, #1c3a56 0%, #152a3e 45%, #0f1f2e 100%)',
       }}
     >
-      <div style={{ width: 340 }}>
+      <div style={{ width: 360 }}>
         {lastAuthError && (
           <div
             style={{
-              background: '#FDECEA',
-              border: '1px solid #C0392B',
-              borderRadius: 8,
+              background: 'var(--color-critical-tint)',
+              border: '1px solid var(--color-critical)',
+              borderRadius: 'var(--radius-md)',
               padding: '0.75rem 1rem',
               marginBottom: '1rem',
               fontSize: 12,
@@ -86,7 +87,7 @@ export function LoginPage() {
               <button
                 type="button"
                 onClick={() => { sessionStorage.removeItem('lastAuthError'); setLastAuthError(null); }}
-                style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#7A2118', fontSize: 14 }}
+                style={{ border: 'none', background: 'none', color: '#7A2118', fontSize: 14 }}
                 aria-label="Cerrar"
               >
                 ✕
@@ -103,38 +104,52 @@ export function LoginPage() {
           </div>
         )}
 
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: '1.25rem' }}>
+          <div style={{
+            width: 52, height: 52, borderRadius: 14, background: 'var(--color-primary)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 14,
+            boxShadow: '0 8px 20px rgba(42, 120, 214, 0.35)',
+          }}>
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round">
+              <path d="M12 5v14M5 12h14" />
+            </svg>
+          </div>
+          <h2 style={{ margin: 0, color: '#fff', fontSize: 19, textAlign: 'center' }}>Clínica Amazonas</h2>
+          <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: 13, marginTop: 4 }}>
+            Sistema de Gestión de Citas Médicas
+          </p>
+        </div>
+
         <form
           onSubmit={handleSubmit(onSubmit)}
           style={{
-            background: '#fff',
+            background: 'var(--surface)',
             padding: '2rem',
-            borderRadius: 8,
-            boxShadow: '0 2px 12px rgba(0,0,0,0.1)',
+            borderRadius: 'var(--radius-lg)',
+            boxShadow: 'var(--shadow-lg)',
           }}
         >
-        <h2 style={{ marginTop: 0, textAlign: 'center' }}>Sistema de Gestión de Citas Médicas</h2>
+          <div style={{ marginBottom: '1rem' }}>
+            <label>Usuario (correo)</label>
+            <input {...register('email')} type="text" style={ui.input} />
+            {errors.email && <small style={{ color: 'var(--color-critical)' }}>{errors.email.message}</small>}
+          </div>
 
-        <div style={{ marginBottom: '1rem' }}>
-          <label>Usuario (correo)</label>
-          <input {...register('email')} type="text" style={{ width: '100%', padding: 8 }} />
-          {errors.email && <small style={{ color: 'crimson' }}>{errors.email.message}</small>}
-        </div>
+          <div style={{ marginBottom: '0.5rem' }}>
+            <label>Contraseña</label>
+            <input {...register('password')} type="password" style={ui.input} />
+            {errors.password && <small style={{ color: 'var(--color-critical)' }}>{errors.password.message}</small>}
+          </div>
 
-        <div style={{ marginBottom: '1rem' }}>
-          <label>Contraseña</label>
-          <input {...register('password')} type="password" style={{ width: '100%', padding: 8 }} />
-          {errors.password && <small style={{ color: 'crimson' }}>{errors.password.message}</small>}
-        </div>
+          {error && <p style={{ color: 'var(--color-critical)', fontSize: 13, marginBottom: '0.75rem' }}>{error}</p>}
 
-        {error && <p style={{ color: 'crimson' }}>{error}</p>}
+          <button type="submit" disabled={isSubmitting} style={{ ...ui.primaryButton, width: '100%', padding: '0.65rem', fontSize: 14.5, marginTop: 4 }}>
+            {isSubmitting ? 'Ingresando...' : 'Ingresar'}
+          </button>
 
-        <button type="submit" disabled={isSubmitting} style={{ width: '100%', padding: 10 }}>
-          {isSubmitting ? 'Ingresando...' : 'Ingresar'}
-        </button>
-
-        <p style={{ fontSize: 12, color: '#888', textAlign: 'center', marginBottom: 0 }}>
-          Roles: Administrador · Médico · Recepcionista
-        </p>
+          <p style={{ fontSize: 12, color: 'var(--text-muted)', textAlign: 'center', marginTop: '1rem' }}>
+            Roles: Administrador · Médico · Recepcionista
+          </p>
         </form>
       </div>
     </div>

@@ -65,14 +65,14 @@ export function DoctorTimeOffModal({ doctor, onClose }: DoctorTimeOffModalProps)
         </button>
       </form>
       {(errors.fechaInicio || errors.fechaFin) && (
-        <small style={{ color: 'crimson' }}>Debes indicar fecha de inicio y fin.</small>
+        <small style={{ color: 'var(--color-critical)' }}>Debes indicar fecha de inicio y fin.</small>
       )}
       {createMutation.isError && (
-        <p style={{ color: 'crimson' }}>No se pudo registrar el descanso. Verifica las fechas.</p>
+        <p style={{ color: 'var(--color-critical)' }}>No se pudo registrar el descanso. Verifica las fechas.</p>
       )}
 
       {conflictos.length > 0 && (
-        <div style={{ background: '#FDF3E7', border: '1px solid #E8B36B', borderRadius: 6, padding: '0.75rem 1rem', marginBottom: '1rem' }}>
+        <div style={{ background: 'var(--color-warning-tint)', border: '1px solid var(--color-warning)', borderRadius: 6, padding: '0.75rem 1rem', marginBottom: '1rem' }}>
           <strong>Atención:</strong> hay {conflictos.length} cita(s) ya agendada(s) en ese rango que deben reprogramarse o cancelarse manualmente:
           <ul style={{ margin: '0.5rem 0 0', paddingLeft: '1.25rem' }}>
             {conflictos.map((c) => (
@@ -107,7 +107,7 @@ export function DoctorTimeOffModal({ doctor, onClose }: DoctorTimeOffModalProps)
               <td style={ui.td}>{t.motivo ?? '—'}</td>
               <td style={ui.td}>
                 <button
-                  style={{ ...ui.secondaryButton, color: '#C0392B', borderColor: '#C0392B' }}
+                  style={{ ...ui.secondaryButton, color: 'var(--color-critical)', borderColor: 'var(--color-critical)' }}
                   disabled={deleteMutation.isPending}
                   onClick={() => deleteMutation.mutate(t.id)}
                 >

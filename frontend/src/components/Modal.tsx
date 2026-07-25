@@ -27,8 +27,9 @@ export function Modal({
       <div
         onClick={(e) => e.stopPropagation()}
         style={{
-          background: '#fff',
-          borderRadius: 8,
+          background: 'var(--surface)',
+          borderRadius: 'var(--radius-lg)',
+          boxShadow: 'var(--shadow-lg)',
           padding: '1.5rem',
           width,
           maxWidth: '90vw',
@@ -36,9 +37,9 @@ export function Modal({
           overflowY: 'auto',
         }}
       >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.1rem' }}>
           <h2 style={{ margin: 0 }}>{title}</h2>
-          <button onClick={onClose} aria-label="Cerrar" style={{ border: 'none', background: 'none', fontSize: 18, cursor: 'pointer' }}>
+          <button onClick={onClose} aria-label="Cerrar" style={{ border: 'none', background: 'none', fontSize: 16, color: 'var(--text-muted)', padding: 4 }}>
             ✕
           </button>
         </div>

@@ -103,7 +103,7 @@ export function DoctorScheduleModal({ doctor, onClose }: DoctorScheduleModalProp
         </button>
       </form>
       {createMutation.isError && (
-        <p style={{ color: 'crimson' }}>No se pudo guardar el horario. Verifica que la hora de inicio sea anterior a la de fin.</p>
+        <p style={{ color: 'var(--color-critical)' }}>No se pudo guardar el horario. Verifica que la hora de inicio sea anterior a la de fin.</p>
       )}
 
       <table style={ui.table}>
@@ -131,7 +131,7 @@ export function DoctorScheduleModal({ doctor, onClose }: DoctorScheduleModalProp
               <td style={ui.td}>{a.duracionSlotMinutos} min</td>
               <td style={ui.td}>
                 <button
-                  style={{ ...ui.secondaryButton, color: '#C0392B', borderColor: '#C0392B' }}
+                  style={{ ...ui.secondaryButton, color: 'var(--color-critical)', borderColor: 'var(--color-critical)' }}
                   disabled={deactivateMutation.isPending}
                   onClick={() => deactivateMutation.mutate(a.id)}
                 >
@@ -143,8 +143,8 @@ export function DoctorScheduleModal({ doctor, onClose }: DoctorScheduleModalProp
         </tbody>
       </table>
 
-      <div style={{ marginTop: '1.25rem', paddingTop: '1rem', borderTop: '1px solid #eee' }}>
-        <p style={{ fontSize: 13, color: '#555' }}>
+      <div style={{ marginTop: '1.25rem', paddingTop: '1rem', borderTop: '1px solid var(--border)' }}>
+        <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
           Después de agregar o cambiar el horario, genera los cupos de los próximos 30 días para que
           queden disponibles al crear citas.
         </p>
@@ -157,7 +157,7 @@ export function DoctorScheduleModal({ doctor, onClose }: DoctorScheduleModalProp
           {generateMutation.isPending ? 'Generando...' : 'Generar cupos ahora'}
         </button>
         {cuposGenerados !== null && (
-          <p style={{ color: '#3E8E3E', marginTop: 8 }}>
+          <p style={{ color: 'var(--color-good)', marginTop: 8 }}>
             {cuposGenerados > 0 ? `${cuposGenerados} cupo(s) nuevo(s) generado(s).` : 'No se generaron cupos nuevos (ya existían todos).'}
           </p>
         )}

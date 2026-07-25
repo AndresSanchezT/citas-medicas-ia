@@ -13,22 +13,41 @@ import {
   Legend,
 } from 'recharts';
 import { getDashboard, getDoctorRanking, getScheduleOccupancy } from '../api/reports';
+import * as ui from '../components/ui';
 
-const PALETTE = { primary: '#2E5FA3', secondary: '#3E8E3E', warn: '#C0392B' };
+// Paleta validada (colorblind-safe, ver skill de dataviz): azul categórico #1
+// para "lo normal/completado", rojo de estado crítico para inasistencias.
+const PALETTE = { primary: '#2a78d6', good: '#0ca30c', critical: '#c23636' };
 
-function KpiCard({ label, value }: { label: string; value: string | number }) {
+function KpiIcon({ children }: { children: React.ReactNode }) {
   return (
-    <div
-      style={{
-        background: '#fff',
-        borderRadius: 8,
-        padding: '1rem',
-        flex: 1,
-        boxShadow: '0 1px 4px rgba(0,0,0,0.08)',
-      }}
-    >
-      <div style={{ fontSize: 12, color: '#666' }}>{label}</div>
-      <div style={{ fontSize: 24, fontWeight: 'bold' }}>{value}</div>
+    <div style={{
+      width: 40, height: 40, borderRadius: 10, background: 'var(--color-primary-tint)',
+      color: 'var(--color-primary-dark)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+      marginBottom: 10,
+    }}>
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        {children}
+      </svg>
+    </div>
+  );
+}
+
+function KpiCard({ label, value, icon }: { label: string; value: string | number; icon: React.ReactNode }) {
+  return (
+    <div style={{ ...ui.card, padding: '1.1rem 1.25rem', flex: 1 }}>
+      <KpiIcon>{icon}</KpiIcon>
+      <div style={{ fontSize: 12.5, color: 'var(--text-secondary)', marginBottom: 2 }}>{label}</div>
+      <div style={{ fontSize: 26, fontWeight: 700, color: 'var(--text)' }}>{value}</div>
+    </div>
+  );
+}
+
+function ChartCard({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div style={{ ...ui.card, padding: '1.1rem 1.25rem', flex: '1 1 400px' }}>
+      <h3>{title}</h3>
+      {children}
     </div>
   );
 }
@@ -57,72 +76,81 @@ export function DashboardPage() {
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <h1>Dashboard</h1>
-        <select value={period} onChange={(e) => setPeriod(e.target.value as typeof period)}>
+        <select value={period} onChange={(e) => setPeriod(e.target.value as typeof period)} style={{ ...ui.input, width: 160, marginBottom: 0 }}>
           <option value="month">Mensual</option>
           <option value="quarter">Trimestral</option>
           <option value="year">Anual</option>
         </select>
       </div>
 
-      <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem' }}>
-        <KpiCard label="Citas completadas" value={totalCompletadas} />
-        <KpiCard label="Inasistencias" value={totalNoShow} />
-        <KpiCard label="Tiempo de espera promedio (min)" value={promedioEspera} />
+      <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem', marginTop: '1.25rem' }}>
+        <KpiCard
+          label="Citas completadas"
+          value={totalCompletadas}
+          icon={<><rect x="3" y="4.5" width="18" height="16" rx="2" /><path d="m8.5 14 2 2 3.5-3.5" /></>}
+        />
+        <KpiCard
+          label="Inasistencias"
+          value={totalNoShow}
+          icon={<><circle cx="12" cy="12" r="8.5" /><path d="m9 9 6 6m0-6-6 6" /></>}
+        />
+        <KpiCard
+          label="Tiempo de espera promedio (min)"
+          value={promedioEspera}
+          icon={<><circle cx="12" cy="12" r="8.5" /><path d="M12 7.5V12l3 2" /></>}
+        />
       </div>
 
       <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap' }}>
-        <div style={{ background: '#fff', borderRadius: 8, padding: '1rem', flex: '1 1 400px' }}>
-          <h3>Tendencia de citas completadas / inasistencias</h3>
+        <ChartCard title="Tendencia de citas completadas / inasistencias">
           {dashboardQuery.isLoading ? (
             <p>Cargando...</p>
           ) : (
             <ResponsiveContainer width="100%" height={280}>
               <LineChart data={data}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="periodo" />
-                <YAxis />
-                <Tooltip />
-                <Legend />
-                <Line type="monotone" dataKey="totalCitasCompletadas" name="Completadas" stroke={PALETTE.secondary} />
-                <Line type="monotone" dataKey="totalNoShow" name="No-show" stroke={PALETTE.warn} />
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                <XAxis dataKey="periodo" stroke="var(--text-muted)" tick={{ fontSize: 12 }} />
+                <YAxis stroke="var(--text-muted)" tick={{ fontSize: 12 }} />
+                <Tooltip contentStyle={{ borderRadius: 8, border: '1px solid var(--border)', fontSize: 13 }} />
+                <Legend wrapperStyle={{ fontSize: 13 }} />
+                <Line type="monotone" dataKey="totalCitasCompletadas" name="Completadas" stroke={PALETTE.primary} strokeWidth={2} dot={{ r: 3 }} />
+                <Line type="monotone" dataKey="totalNoShow" name="No-show" stroke={PALETTE.critical} strokeWidth={2} dot={{ r: 3 }} />
               </LineChart>
             </ResponsiveContainer>
           )}
-        </div>
+        </ChartCard>
 
-        <div style={{ background: '#fff', borderRadius: 8, padding: '1rem', flex: '1 1 400px' }}>
-          <h3>Citas por médico</h3>
+        <ChartCard title="Citas por médico">
           {rankingQuery.isLoading ? (
             <p>Cargando...</p>
           ) : (
             <ResponsiveContainer width="100%" height={280}>
               <BarChart data={rankingQuery.data ?? []}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="nombre" />
-                <YAxis />
-                <Tooltip />
-                <Bar dataKey="totalPacientesAtendidos" name="Pacientes atendidos" fill={PALETTE.primary} />
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                <XAxis dataKey="nombre" stroke="var(--text-muted)" tick={{ fontSize: 12 }} />
+                <YAxis stroke="var(--text-muted)" tick={{ fontSize: 12 }} />
+                <Tooltip contentStyle={{ borderRadius: 8, border: '1px solid var(--border)', fontSize: 13 }} />
+                <Bar dataKey="totalPacientesAtendidos" name="Pacientes atendidos" fill={PALETTE.primary} radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           )}
-        </div>
+        </ChartCard>
 
-        <div style={{ background: '#fff', borderRadius: 8, padding: '1rem', flex: '1 1 400px' }}>
-          <h3>Horarios con más pacientes</h3>
+        <ChartCard title="Horarios con más pacientes">
           {occupancyQuery.isLoading ? (
             <p>Cargando...</p>
           ) : (
             <ResponsiveContainer width="100%" height={280}>
               <BarChart data={occupancyQuery.data ?? []}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="franjaHoraria" />
-                <YAxis />
-                <Tooltip />
-                <Bar dataKey="totalPacientes" name="Pacientes" fill={PALETTE.primary} />
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                <XAxis dataKey="franjaHoraria" stroke="var(--text-muted)" tick={{ fontSize: 12 }} />
+                <YAxis stroke="var(--text-muted)" tick={{ fontSize: 12 }} />
+                <Tooltip contentStyle={{ borderRadius: 8, border: '1px solid var(--border)', fontSize: 13 }} />
+                <Bar dataKey="totalPacientes" name="Pacientes" fill={PALETTE.primary} radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           )}
-        </div>
+        </ChartCard>
       </div>
     </div>
   );

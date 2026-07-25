@@ -88,7 +88,7 @@ export function WaitlistPage() {
       </div>
 
       {ranking.length > 0 && (
-        <div style={{ ...ui.card, padding: '0.75rem 1rem', marginBottom: '1rem', background: '#FFF3D6' }}>
+        <div style={{ ...ui.card, padding: '0.75rem 1rem', marginBottom: '1rem', background: 'var(--color-warning-tint)' }}>
           <strong>Ranking de demanda: </strong>
           {ranking.map((r) => `${r.nombre} (${r.demanda})`).join(' · ')}
         </div>
@@ -125,7 +125,7 @@ export function WaitlistPage() {
                         Asignar cupo
                       </button>
                       <button
-                        style={{ ...ui.secondaryButton, color: '#999' }}
+                        style={{ ...ui.secondaryButton, color: 'var(--text-muted)' }}
                         onClick={() => expireMutation.mutate(e.id)}
                       >
                         Expirar

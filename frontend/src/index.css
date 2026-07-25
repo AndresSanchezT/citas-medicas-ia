@@ -1,53 +1,55 @@
 :root {
-  --text: #6b6375;
-  --text-h: #08060d;
-  --bg: #fff;
-  --border: #e5e4e7;
-  --code-bg: #f4f3ec;
-  --accent: #aa3bff;
-  --accent-bg: rgba(170, 59, 255, 0.1);
-  --accent-border: rgba(170, 59, 255, 0.5);
-  --social-bg: rgba(244, 243, 236, 0.5);
-  --shadow:
-    rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
+  /* Paleta clínica: azul confiable como color de marca, teal como acento de
+     éxito/positivo, y una paleta de estado fija (independiente de la de marca)
+     para no confundir "estado de una cita" con "color de marca". */
+  --color-primary: #2a78d6;
+  --color-primary-dark: #184f95;
+  --color-primary-darker: #0d366b;
+  --color-primary-tint: #eaf2fc;
+  --color-primary-tint-strong: #cde2fb;
 
-  --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --heading: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --mono: ui-monospace, Consolas, monospace;
+  --color-accent: #0f8a72;
 
-  font: 18px/145% var(--sans);
-  letter-spacing: 0.18px;
-  color-scheme: light dark;
+  --color-good: #0ca30c;
+  --color-good-tint: #e6f7e6;
+  --color-warning: #b5790f;
+  --color-warning-tint: #fdf1dc;
+  --color-serious: #c1531f;
+  --color-serious-tint: #fbe9e1;
+  --color-critical: #c23636;
+  --color-critical-tint: #fbe7e7;
+  --color-neutral: #6b7280;
+  --color-neutral-tint: #eef0f2;
+  --color-violet: #5c4aa8;
+
+  --surface: #ffffff;
+  --surface-sunken: #f4f7fa;
+  --page-bg: #eef2f6;
+  --border: #dde3ea;
+  --border-strong: #c7d0da;
+
+  --text: #24303d;
+  --text-secondary: #5b6b7a;
+  --text-muted: #8b97a3;
+
+  --shadow-sm: 0 1px 2px rgba(16, 42, 67, 0.06);
+  --shadow-md: 0 2px 8px rgba(16, 42, 67, 0.08);
+  --shadow-lg: 0 8px 24px rgba(16, 42, 67, 0.12);
+
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+
+  --sans: -apple-system, "Segoe UI", Roboto, Inter, "Helvetica Neue", Arial, sans-serif;
+
+  font: 15px/1.5 var(--sans);
+  color-scheme: light;
   color: var(--text);
-  background: var(--bg);
+  background: var(--page-bg);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-
-  @media (max-width: 1024px) {
-    font-size: 16px;
-  }
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --text: #9ca3af;
-    --text-h: #f3f4f6;
-    --bg: #16171d;
-    --border: #2e303a;
-    --code-bg: #1f2028;
-    --accent: #c084fc;
-    --accent-bg: rgba(192, 132, 252, 0.15);
-    --accent-border: rgba(192, 132, 252, 0.5);
-    --social-bg: rgba(47, 48, 58, 0.5);
-    --shadow:
-      rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
-  }
-
-  #social .button-icon {
-    filter: invert(1) brightness(2);
-  }
 }
 
 html, body, #root {
@@ -64,38 +66,81 @@ body {
   margin: 0;
 }
 
-h1,
-h2 {
-  font-family: var(--heading);
+h1, h2, h3 {
+  font-family: var(--sans);
   font-weight: 600;
-  color: var(--text-h);
+  color: var(--text);
   margin: 0 0 1rem;
+  letter-spacing: -0.2px;
 }
 
-h1 {
-  font-size: 28px;
-  letter-spacing: -0.5px;
-}
-h2 {
-  font-size: 20px;
-  line-height: 118%;
-  letter-spacing: -0.24px;
-}
-p {
-  margin: 0;
+h1 { font-size: 22px; }
+h2 { font-size: 17px; }
+h3 { font-size: 15px; margin-bottom: 0.75rem; }
+
+p { margin: 0; }
+
+label {
+  display: block;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  margin-bottom: 2px;
 }
 
-code,
-.counter {
-  font-family: var(--mono);
-  display: inline-flex;
-  border-radius: 4px;
-  color: var(--text-h);
+/* ---------- Polish global de interacción ----------
+   Se aplica a nivel de elemento (no de clase) a propósito: las páginas usan
+   estilos en línea a través de src/components/ui.ts, así que estas reglas dan
+   hover/focus consistentes sin tener que tocar cada botón/tabla individualmente. */
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+  transition: filter 0.12s ease, transform 0.05s ease, box-shadow 0.12s ease;
+}
+button:hover:not(:disabled) {
+  filter: brightness(1.05);
+}
+button:active:not(:disabled) {
+  transform: translateY(1px);
+}
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
 }
 
-code {
-  font-size: 15px;
-  line-height: 135%;
-  padding: 4px 8px;
-  background: var(--code-bg);
+input, select, textarea {
+  font-family: inherit;
+  transition: border-color 0.12s ease, box-shadow 0.12s ease;
+}
+input:focus, select:focus, textarea:focus {
+  outline: none;
+  border-color: var(--color-primary) !important;
+  box-shadow: 0 0 0 3px var(--color-primary-tint);
+}
+
+table tbody tr {
+  transition: background 0.1s ease;
+}
+table tbody tr:hover {
+  background: var(--surface-sunken);
+}
+
+a {
+  color: var(--color-primary);
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
 }
