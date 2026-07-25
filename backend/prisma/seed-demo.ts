@@ -92,7 +92,13 @@ async function main() {
   console.log(`Médicos creados: ${doctores.length}`);
 
   // ---------- Pacientes ----------
-  const pacientes: { id: number; nombres: string; apellidos: string }[] = [];
+  // Cada paciente recibe una tendencia real (oculta, no se guarda en BD) a no asistir a sus
+  // citas: la mayoría son "confiables" y una minoría "inconstantes". Esto le da al histórico
+  // una correlación real entre inasistencias pasadas y futuras, necesaria para que el modelo
+  // de clasificación de riesgo de inasistencia tenga algo genuino que aprender (antes, la
+  // probabilidad era fija e independiente del paciente, así que el modelo no podía superar
+  // el azar).
+  const pacientes: { id: number; nombres: string; apellidos: string; noShowTendencia: number }[] = [];
   const documentosUsados = new Set<string>();
   for (let i = 0; i < 30; i++) {
     const { nombres, apellidos } = randomPatientName();
@@ -110,7 +116,8 @@ async function main() {
         fechaNacimiento: new Date(Date.UTC(randInt(1950, 2020), randInt(0, 11), randInt(1, 28))),
       },
     });
-    pacientes.push({ id: patient.id, nombres, apellidos });
+    const noShowTendencia = Math.random() < 0.25 ? randInt(20, 40) / 100 : randInt(1, 6) / 100;
+    pacientes.push({ id: patient.id, nombres, apellidos, noShowTendencia });
   }
   console.log(`Pacientes creados: ${pacientes.length}`);
 
@@ -144,20 +151,29 @@ async function main() {
         const [h, m] = horaInicio.split(':').map(Number);
         const horaBase = new Date(Date.UTC(fecha.getUTCFullYear(), fecha.getUTCMonth(), fecha.getUTCDate(), h, m));
 
-        if (roll < 0.08) {
+        // Anticipación real de reserva (1-14 días antes de la cita), en vez de dejar
+        // created_at en el momento de la siembra para todas las citas históricas por igual
+        // (eso hacía que "días de anticipación" fuera siempre 0 para el entrenamiento).
+        const diasAnticipacion = randInt(1, 14);
+        const createdAt = new Date(fecha.getTime() - diasAnticipacion * 24 * 60 * 60 * 1000);
+        // Una anticipación más larga incrementa levemente el riesgo real de inasistencia
+        // (patrón documentado en la literatura de no-show clínico).
+        const umbralNoShow = paciente.noShowTendencia + diasAnticipacion * 0.004;
+
+        if (roll < umbralNoShow) {
           // No asistió
           await prisma.appointment.create({
             data: {
               patientId: paciente.id, doctorId: doc.id, fecha, horaInicio, horaFin,
-              estado: 'NO_ASISTIO', motivoConsulta: 'Consulta programada',
+              estado: 'NO_ASISTIO', motivoConsulta: 'Consulta programada', createdAt,
             },
           });
-        } else if (roll < 0.13) {
+        } else if (roll < umbralNoShow + 0.05) {
           // Cancelada
           await prisma.appointment.create({
             data: {
               patientId: paciente.id, doctorId: doc.id, fecha, horaInicio, horaFin,
-              estado: 'CANCELADA', motivoConsulta: 'Consulta programada',
+              estado: 'CANCELADA', motivoConsulta: 'Consulta programada', createdAt,
             },
           });
         } else {
@@ -171,7 +187,7 @@ async function main() {
           await prisma.appointment.create({
             data: {
               patientId: paciente.id, doctorId: doc.id, fecha, horaInicio, horaFin,
-              estado: 'COMPLETADA', motivoConsulta: 'Consulta programada',
+              estado: 'COMPLETADA', motivoConsulta: 'Consulta programada', createdAt,
               horaLlegadaReal: llegada, horaAtencionInicioReal: inicioAtencion, horaAtencionFinReal: finAtencion,
               waitTimeHistory: {
                 create: {
