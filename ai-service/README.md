@@ -1,22 +1,59 @@
 # Servicio de IA — Predicción de citas médicas
 
-Servicio independiente (FastAPI) que expone dos modelos:
+Servicio independiente (Python + FastAPI) que expone dos modelos entrenados con scikit-learn:
 
-- `POST /predict/wait-time` — predicción de tiempo de espera (regresión).
-- `POST /predict/no-show-risk` — predicción de riesgo de inasistencia (clasificación).
+- `POST /predict/wait-time` — tiempo de espera estimado (regresión, `RandomForestRegressor`).
+- `POST /predict/no-show-risk` — riesgo de inasistencia (clasificación, `RandomForestClassifier`).
 
-Mientras no exista un modelo entrenado en `app/models/`, ambos endpoints responden con una heurística de respaldo (ver `app/prediction.py`).
+El backend NestJS consulta este servicio como fuente primaria de predicción; si no responde
+(apagado, timeout), cae automáticamente en la heurística de respaldo (promedio ponderado /
+conteo de inasistencias previas), así que el sistema completo sigue funcionando sin este
+servicio, solo con predicciones menos precisas.
 
-## Requisito pendiente
+## Puesta en marcha
 
-Este equipo todavía no tiene Python instalado. Antes de poder ejecutar este servicio:
+Requiere que la base de datos ya tenga datos (ver los scripts de siembra en `backend/prisma/`),
+ya que el entrenamiento lee el histórico real de citas.
 
-1. Instalar Python 3.11 (https://www.python.org/downloads/).
-2. Desde esta carpeta (`ai-service/`):
-   ```
-   python -m venv .venv
-   .venv\Scripts\activate
-   pip install -r requirements.txt
-   uvicorn app.main:app --reload --port 8001
-   ```
-3. Verificar en `http://localhost:8001/health`.
+```bash
+cd ai-service
+python -m venv .venv
+
+# Windows
+.venv\Scripts\activate
+# Linux/Mac
+source .venv/bin/activate
+
+pip install -r requirements.txt
+cp .env.example .env   # ajustar DATABASE_URL si tu MySQL no usa root:root
+```
+
+Entrenar los modelos (regenera `app/models/*.joblib`, no versionados en git):
+
+```bash
+python train.py
+```
+
+Levantar el servicio:
+
+```bash
+uvicorn app.main:app --host 0.0.0.0 --port 8000
+```
+
+Verificar en `http://localhost:8000/health`.
+
+El backend lo busca en `AI_SERVICE_URL` (ver `backend/.env.example`), por defecto
+`http://localhost:8000` — si usas otro puerto, actualiza esa variable también en `backend/.env`.
+
+## Reentrenar tras sembrar más datos
+
+Cada vez que se resiembra la base de datos de demo (`backend/prisma/reset-demo-data.ts` +
+los scripts `seed-*.ts`), conviene volver a correr `python train.py` para que los modelos
+reflejen el histórico actual.
+
+## Sin modelo entrenado todavía
+
+Si `app/models/*.joblib` no existe (por ejemplo, antes de la primera ejecución de
+`train.py`, o si el histórico es insuficiente), ambos endpoints responden igual pero con
+una heurística de respaldo simple (ver `app/prediction.py`), para que el servicio nunca
+falle por falta de modelo.
