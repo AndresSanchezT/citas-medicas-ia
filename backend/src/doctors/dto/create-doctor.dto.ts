@@ -1,4 +1,4 @@
-import { IsEmail, IsInt, IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsEmail, IsInt, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
 
 export class CreateDoctorDto {
   @IsString()
@@ -24,4 +24,9 @@ export class CreateDoctorDto {
   @IsOptional()
   @IsEmail()
   email?: string;
+
+  @IsOptional()
+  @IsString()
+  @MinLength(6)
+  password?: string;
 }

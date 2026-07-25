@@ -20,6 +20,7 @@ export interface DoctorInput {
   specialtyId: number;
   telefono?: string;
   email?: string;
+  password?: string;
 }
 
 export async function fetchDoctors(): Promise<Doctor[]> {

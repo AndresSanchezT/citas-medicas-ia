@@ -13,6 +13,7 @@ import {
   Legend,
 } from 'recharts';
 import { getDashboard, getDoctorRanking, getScheduleOccupancy } from '../api/reports';
+import { downloadManagementReportPdf } from '../utils/pdfReports';
 import * as ui from '../components/ui';
 
 // Paleta validada (colorblind-safe, ver skill de dataviz): azul categórico #1
@@ -72,15 +73,31 @@ export function DashboardPage() {
         )
       : 0;
 
+  const isReportLoading = dashboardQuery.isLoading || rankingQuery.isLoading || occupancyQuery.isLoading;
+
+  function handleDownloadPdf() {
+    downloadManagementReportPdf({
+      period,
+      dashboard: data,
+      ranking: rankingQuery.data ?? [],
+      occupancy: occupancyQuery.data ?? [],
+    });
+  }
+
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <h1>Dashboard</h1>
-        <select value={period} onChange={(e) => setPeriod(e.target.value as typeof period)} style={{ ...ui.input, width: 160, marginBottom: 0 }}>
-          <option value="month">Mensual</option>
-          <option value="quarter">Trimestral</option>
-          <option value="year">Anual</option>
-        </select>
+        <div style={{ display: 'flex', gap: 10 }}>
+          <select value={period} onChange={(e) => setPeriod(e.target.value as typeof period)} style={{ ...ui.input, width: 160, marginBottom: 0 }}>
+            <option value="month">Mensual</option>
+            <option value="quarter">Trimestral</option>
+            <option value="year">Anual</option>
+          </select>
+          <button style={ui.primaryButton} disabled={isReportLoading} onClick={handleDownloadPdf}>
+            Descargar PDF
+          </button>
+        </div>
       </div>
 
       <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem', marginTop: '1.25rem' }}>

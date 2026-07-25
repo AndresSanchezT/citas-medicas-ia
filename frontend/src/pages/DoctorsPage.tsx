@@ -17,6 +17,7 @@ const doctorSchema = z.object({
   specialtyId: z.string().min(1, 'Selecciona una especialidad'),
   telefono: z.string().optional(),
   email: z.union([z.literal(''), z.string().email('Correo inválido')]).optional(),
+  password: z.union([z.literal(''), z.string().min(6, 'Mínimo 6 caracteres')]).optional(),
 });
 type DoctorForm = z.infer<typeof doctorSchema>;
 
@@ -31,13 +32,14 @@ export function DoctorsPage() {
   const { data: doctors = [], isLoading } = useQuery({ queryKey: ['doctors'], queryFn: fetchDoctors });
   const { data: specialties = [] } = useQuery({ queryKey: ['specialties'], queryFn: fetchSpecialties });
 
-  const { register, handleSubmit, reset, formState: { errors, isSubmitting } } = useForm<DoctorForm>({
+  const { register, handleSubmit, reset, setError, formState: { errors, isSubmitting } } = useForm<DoctorForm>({
     resolver: zodResolver(doctorSchema),
   });
 
   const saveMutation = useMutation({
     mutationFn: (values: DoctorForm) => {
       const input = { ...values, specialtyId: Number(values.specialtyId) };
+      if (!input.password) delete input.password;
       return editing ? updateDoctor(editing.id, input) : createDoctor(input);
     },
     onSuccess: () => {
@@ -45,6 +47,20 @@ export function DoctorsPage() {
       closeForm();
     },
   });
+
+  function onSubmit(values: DoctorForm) {
+    if (!editing) {
+      if (!values.email) {
+        setError('email', { message: 'Requerido para crear las credenciales de acceso del médico' });
+        return;
+      }
+      if (!values.password) {
+        setError('password', { message: 'Requerido para crear las credenciales de acceso del médico' });
+        return;
+      }
+    }
+    saveMutation.mutate(values);
+  }
 
   const deactivateMutation = useMutation({
     mutationFn: deactivateDoctor,
@@ -61,7 +77,7 @@ export function DoctorsPage() {
 
   function openCreate() {
     setEditing(null);
-    reset({ nombres: '', apellidos: '', documentoIdentidad: '', specialtyId: '', telefono: '', email: '' });
+    reset({ nombres: '', apellidos: '', documentoIdentidad: '', specialtyId: '', telefono: '', email: '', password: '' });
     setShowForm(true);
   }
 
@@ -74,6 +90,7 @@ export function DoctorsPage() {
       specialtyId: String(doctor.specialtyId),
       telefono: doctor.telefono ?? '',
       email: doctor.email ?? '',
+      password: '',
     });
     setShowForm(true);
   }
@@ -145,7 +162,7 @@ export function DoctorsPage() {
 
       {showForm && (
         <Modal title={editing ? 'Editar médico' : 'Nuevo médico'} onClose={closeForm}>
-          <form onSubmit={handleSubmit((values) => saveMutation.mutate(values))}>
+          <form onSubmit={handleSubmit(onSubmit)}>
             <label>Nombres</label>
             <input {...register('nombres')} style={ui.input} />
             {errors.nombres && <small style={{ color: 'var(--color-critical)' }}>{errors.nombres.message}</small>}
@@ -187,9 +204,13 @@ export function DoctorsPage() {
             <label>Teléfono</label>
             <input {...register('telefono')} style={ui.input} />
 
-            <label>Email</label>
+            <label>Email {!editing && '(será su usuario de acceso)'}</label>
             <input {...register('email')} style={ui.input} />
             {errors.email && <small style={{ color: 'var(--color-critical)' }}>{errors.email.message}</small>}
+
+            <label>Contraseña {!editing && '(acceso a "Mi agenda")'}</label>
+            <input type="password" {...register('password')} style={ui.input} placeholder={editing ? 'Dejar en blanco para no cambiarla' : ''} />
+            {errors.password && <small style={{ color: 'var(--color-critical)' }}>{errors.password.message}</small>}
 
             <button type="submit" disabled={isSubmitting} style={{ ...ui.primaryButton, width: '100%' }}>
               Guardar

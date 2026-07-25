@@ -6,6 +6,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { defaultRouteForRole } from '../utils/roleRoutes';
 import * as ui from '../components/ui';
+import logoClinica from '../assets/logoclinica.png';
 
 const loginSchema = z.object({
   email: z.string().email('Correo inválido'),
@@ -65,11 +66,14 @@ export function LoginPage() {
         alignItems: 'center',
         justifyContent: 'center',
         minHeight: '100vh',
+        padding: '2rem 1rem',
         background:
-          'radial-gradient(circle at 20% 20%, #1c3a56 0%, #152a3e 45%, #0f1f2e 100%)',
+          'radial-gradient(circle at 12% 15%, rgba(255,255,255,0.10) 0%, rgba(255,255,255,0) 35%),' +
+          'radial-gradient(circle at 88% 80%, rgba(15,138,114,0.40) 0%, rgba(15,138,114,0) 45%),' +
+          'linear-gradient(135deg, #0a1f33 0%, #123a5e 45%, #0f8a72 100%)',
       }}
     >
-      <div style={{ width: 360 }}>
+      <div style={{ width: 380 }}>
         {lastAuthError && (
           <div
             style={{
@@ -104,53 +108,70 @@ export function LoginPage() {
           </div>
         )}
 
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: '1.25rem' }}>
-          <div style={{
-            width: 52, height: 52, borderRadius: 14, background: 'var(--color-primary)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 14,
-            boxShadow: '0 8px 20px rgba(42, 120, 214, 0.35)',
-          }}>
-            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round">
-              <path d="M12 5v14M5 12h14" />
-            </svg>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: '1.75rem' }}>
+          <div
+            style={{
+              width: 112,
+              height: 112,
+              borderRadius: 26,
+              background: 'rgba(255,255,255,0.97)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: 14,
+              marginBottom: 20,
+              boxShadow: '0 16px 36px rgba(3, 15, 26, 0.45), 0 0 0 1px rgba(255,255,255,0.12)',
+            }}
+          >
+            <img
+              src={logoClinica}
+              alt="Clínica Amazonas"
+              style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }}
+            />
           </div>
-          <h2 style={{ margin: 0, color: '#fff', fontSize: 19, textAlign: 'center' }}>Clínica Amazonas</h2>
-          <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: 13, marginTop: 4 }}>
+          <h1 style={{ margin: 0, color: '#fff', fontSize: 25, fontWeight: 700, textAlign: 'center', letterSpacing: '-0.3px' }}>
+            Clínica Amazonas
+          </h1>
+          <div style={{ width: 44, height: 3, borderRadius: 2, background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.55), transparent)', margin: '12px 0 10px' }} />
+          <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12.5, textAlign: 'center', letterSpacing: '0.6px', textTransform: 'uppercase' }}>
             Sistema de Gestión de Citas Médicas
           </p>
         </div>
 
-        <form
-          onSubmit={handleSubmit(onSubmit)}
+        <div
           style={{
             background: 'var(--surface)',
-            padding: '2rem',
-            borderRadius: 'var(--radius-lg)',
-            boxShadow: 'var(--shadow-lg)',
+            borderRadius: 20,
+            boxShadow: '0 28px 64px rgba(3, 15, 26, 0.5)',
+            overflow: 'hidden',
           }}
         >
-          <div style={{ marginBottom: '1rem' }}>
-            <label>Usuario (correo)</label>
-            <input {...register('email')} type="text" style={ui.input} />
-            {errors.email && <small style={{ color: 'var(--color-critical)' }}>{errors.email.message}</small>}
-          </div>
+          <div style={{ height: 4, background: 'linear-gradient(90deg, var(--color-primary), var(--color-accent))' }} />
 
-          <div style={{ marginBottom: '0.5rem' }}>
-            <label>Contraseña</label>
-            <input {...register('password')} type="password" style={ui.input} />
-            {errors.password && <small style={{ color: 'var(--color-critical)' }}>{errors.password.message}</small>}
-          </div>
+          <form onSubmit={handleSubmit(onSubmit)} style={{ padding: '2.25rem 2rem' }}>
+            <div style={{ marginBottom: '1rem' }}>
+              <label>Usuario (correo)</label>
+              <input {...register('email')} type="text" style={ui.input} />
+              {errors.email && <small style={{ color: 'var(--color-critical)' }}>{errors.email.message}</small>}
+            </div>
 
-          {error && <p style={{ color: 'var(--color-critical)', fontSize: 13, marginBottom: '0.75rem' }}>{error}</p>}
+            <div style={{ marginBottom: '0.5rem' }}>
+              <label>Contraseña</label>
+              <input {...register('password')} type="password" style={ui.input} />
+              {errors.password && <small style={{ color: 'var(--color-critical)' }}>{errors.password.message}</small>}
+            </div>
 
-          <button type="submit" disabled={isSubmitting} style={{ ...ui.primaryButton, width: '100%', padding: '0.65rem', fontSize: 14.5, marginTop: 4 }}>
-            {isSubmitting ? 'Ingresando...' : 'Ingresar'}
-          </button>
+            {error && <p style={{ color: 'var(--color-critical)', fontSize: 13, marginBottom: '0.75rem' }}>{error}</p>}
 
-          <p style={{ fontSize: 12, color: 'var(--text-muted)', textAlign: 'center', marginTop: '1rem' }}>
-            Roles: Administrador · Médico · Recepcionista
-          </p>
-        </form>
+            <button type="submit" disabled={isSubmitting} style={{ ...ui.primaryButton, width: '100%', padding: '0.65rem', fontSize: 14.5, marginTop: 4 }}>
+              {isSubmitting ? 'Ingresando...' : 'Ingresar'}
+            </button>
+
+            <p style={{ fontSize: 12, color: 'var(--text-muted)', textAlign: 'center', marginTop: '1rem' }}>
+              Roles: Administrador · Médico · Recepcionista
+            </p>
+          </form>
+        </div>
       </div>
     </div>
   );
