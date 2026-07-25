@@ -7,6 +7,7 @@ import { createDoctor, deactivateDoctor, fetchDoctors, updateDoctor, type Doctor
 import { createSpecialty, fetchSpecialties } from '../api/specialties';
 import { Modal } from '../components/Modal';
 import { DoctorTimeOffModal } from '../components/DoctorTimeOffModal';
+import { DoctorScheduleModal } from '../components/DoctorScheduleModal';
 import * as ui from '../components/ui';
 
 const doctorSchema = z.object({
@@ -25,6 +26,7 @@ export function DoctorsPage() {
   const [showForm, setShowForm] = useState(false);
   const [newSpecialty, setNewSpecialty] = useState('');
   const [timeOffDoctor, setTimeOffDoctor] = useState<Doctor | null>(null);
+  const [scheduleDoctor, setScheduleDoctor] = useState<Doctor | null>(null);
 
   const { data: doctors = [], isLoading } = useQuery({ queryKey: ['doctors'], queryFn: fetchDoctors });
   const { data: specialties = [] } = useQuery({ queryKey: ['specialties'], queryFn: fetchSpecialties });
@@ -119,6 +121,9 @@ export function DoctorsPage() {
                 <td style={ui.td}>{d.documentoIdentidad}</td>
                 <td style={ui.td}>{d.telefono ?? d.email ?? '—'}</td>
                 <td style={ui.td}>
+                  <button style={{ ...ui.secondaryButton, marginRight: 8 }} onClick={() => setScheduleDoctor(d)}>
+                    Horarios
+                  </button>
                   <button style={{ ...ui.secondaryButton, marginRight: 8 }} onClick={() => setTimeOffDoctor(d)}>
                     Descansos/Vacaciones
                   </button>
@@ -195,6 +200,10 @@ export function DoctorsPage() {
 
       {timeOffDoctor && (
         <DoctorTimeOffModal doctor={timeOffDoctor} onClose={() => setTimeOffDoctor(null)} />
+      )}
+
+      {scheduleDoctor && (
+        <DoctorScheduleModal doctor={scheduleDoctor} onClose={() => setScheduleDoctor(null)} />
       )}
     </div>
   );

@@ -44,6 +44,11 @@ export async function createAvailability(input: {
   return data;
 }
 
+export async function deactivateAvailability(id: number): Promise<WeeklyAvailability> {
+  const { data } = await apiClient.patch<WeeklyAvailability>(`/schedules/availability/${id}/deactivate`);
+  return data;
+}
+
 export async function generateSlots(daysAhead?: number): Promise<number> {
   const { data } = await apiClient.post<number>('/schedules/generate-slots', { daysAhead });
   return data;
