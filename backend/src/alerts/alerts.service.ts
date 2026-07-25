@@ -8,6 +8,12 @@ import type { AppointmentCancelledEvent, AppointmentNoShowEvent } from '../appoi
 const UMBRAL_INASISTENCIAS_FRECUENTES = 3;
 const DIAS_VENTANA_INASISTENCIAS = 60;
 const UMBRAL_OCUPACION_SOBRECARGA = 0.8; // 80%
+const AI_SERVICE_TIMEOUT_MS = 2500;
+
+interface AiNoShowResponse {
+  probabilidad_no_show: number;
+  nivel_riesgo: 'alto' | 'medio' | 'bajo';
+}
 
 @Injectable()
 export class AlertsService {
@@ -125,7 +131,12 @@ export class AlertsService {
       });
       if (yaAlertada) continue;
 
-      const mensaje = `Recordatorio: tiene una cita el ${cita.fecha.toISOString().split('T')[0]} a las ${cita.horaInicio}.`;
+      const riesgo = await this.getNoShowRisk(cita);
+      const esAltoRiesgo = riesgo === 'alto';
+      const mensaje = esAltoRiesgo
+        ? `Recordatorio IMPORTANTE: tiene una cita el ${cita.fecha.toISOString().split('T')[0]} a las ${cita.horaInicio}. Por favor confirme su asistencia.`
+        : `Recordatorio: tiene una cita el ${cita.fecha.toISOString().split('T')[0]} a las ${cita.horaInicio}.`;
+
       await this.crearAlerta({
         tipo: 'RECORDATORIO_CITA',
         destinatarioTipo: 'PACIENTE',
@@ -136,8 +147,44 @@ export class AlertsService {
       });
 
       if (cita.patient.email) {
-        await this.emailService.send(cita.patient.email, 'Recordatorio de cita', mensaje);
+        const asunto = esAltoRiesgo ? 'Recordatorio de cita — confirme su asistencia' : 'Recordatorio de cita';
+        await this.emailService.send(cita.patient.email, asunto, mensaje);
       }
+    }
+  }
+
+  // Consulta el modelo de clasificación del servicio de IA (riesgo de inasistencia) para
+  // reforzar el recordatorio de los pacientes con mayor probabilidad de no-show (HU-13/HU-14).
+  // Si el servicio no responde, simplemente no se refuerza el mensaje (no bloquea el recordatorio).
+  private async getNoShowRisk(cita: { patientId: number; doctorId: number; fecha: Date; createdAt: Date }) {
+    const inasistenciasPrevias = await this.prisma.appointment.count({
+      where: { patientId: cita.patientId, estado: 'NO_ASISTIO', updatedAt: { lt: cita.createdAt } },
+    });
+    const diasAnticipacion = Math.max(
+      0,
+      Math.round((cita.fecha.getTime() - cita.createdAt.getTime()) / (1000 * 60 * 60 * 24)),
+    );
+
+    const baseUrl = process.env.AI_SERVICE_URL || 'http://localhost:8000';
+    try {
+      const res = await fetch(`${baseUrl}/predict/no-show-risk`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          patient_id: cita.patientId,
+          doctor_id: cita.doctorId,
+          // .getUTCDay(): fecha viene de Prisma como medianoche UTC (columna @db.Date).
+          dia_semana: cita.fecha.getUTCDay(),
+          dias_anticipacion: diasAnticipacion,
+          inasistencias_previas: inasistenciasPrevias,
+        }),
+        signal: AbortSignal.timeout(AI_SERVICE_TIMEOUT_MS),
+      });
+      if (!res.ok) return null;
+      const data = (await res.json()) as AiNoShowResponse;
+      return data.nivel_riesgo;
+    } catch {
+      return null;
     }
   }
 
