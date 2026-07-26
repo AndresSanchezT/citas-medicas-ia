@@ -210,9 +210,14 @@ export function AppointmentsPage() {
             <label>Motivo de consulta</label>
             <input {...register('motivoConsulta')} style={ui.input} />
 
-            <button type="submit" disabled={createMutation.isPending} style={{ ...ui.primaryButton, width: '100%' }}>
-              Confirmar cita
-            </button>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button type="button" style={{ ...ui.secondaryButton, flex: 1 }} onClick={closeForm}>
+                Cancelar
+              </button>
+              <button type="submit" disabled={createMutation.isPending} style={{ ...ui.primaryButton, flex: 1 }}>
+                Confirmar cita
+              </button>
+            </div>
           </form>
         </Modal>
       )}

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import {
@@ -23,6 +23,19 @@ interface NewEntryForm {
   prioridad: 'NORMAL' | 'URGENTE';
 }
 
+// El backend calcula tiempoEsperaEstimadoMinutos una sola vez, al anotar al paciente.
+// Acá lo convertimos en una cuenta regresiva en vivo restando el tiempo ya transcurrido
+// desde fechaSolicitud, para no mostrar siempre el mismo número congelado.
+function tiempoEsperaLabel(entry: WaitlistEntry): string {
+  if (entry.tiempoEsperaEstimadoMinutos == null) return '—';
+  if (entry.estado !== 'ESPERANDO' && entry.estado !== 'NOTIFICADO') {
+    return `~${entry.tiempoEsperaEstimadoMinutos} min (estimado inicial)`;
+  }
+  const transcurridoMin = (Date.now() - new Date(entry.fechaSolicitud).getTime()) / 60000;
+  const restante = Math.round(entry.tiempoEsperaEstimadoMinutos - transcurridoMin);
+  return restante > 0 ? `~${restante} min` : 'Tiempo estimado superado';
+}
+
 export function WaitlistPage() {
   const queryClient = useQueryClient();
   const [showForm, setShowForm] = useState(false);
@@ -42,6 +55,14 @@ export function WaitlistPage() {
   });
 
   const { register, handleSubmit, reset } = useForm<NewEntryForm>({ defaultValues: { prioridad: 'NORMAL' } });
+
+  // Fuerza un re-render cada 30s para que la cuenta regresiva de "Tiempo estimado" avance
+  // sin necesidad de recargar la página ni volver a pedir datos al backend.
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setTick((t) => t + 1), 30_000);
+    return () => clearInterval(id);
+  }, []);
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ['waitlist'] });
@@ -116,7 +137,7 @@ export function WaitlistPage() {
                 <td style={ui.td}>{e.patient?.nombres} {e.patient?.apellidos}</td>
                 <td style={ui.td}>{e.doctor ? `${e.doctor.nombres} ${e.doctor.apellidos}` : e.specialty?.nombre ?? '—'}</td>
                 <td style={ui.td}>{e.prioridad}</td>
-                <td style={ui.td}>{e.tiempoEsperaEstimadoMinutos != null ? `~${e.tiempoEsperaEstimadoMinutos} min` : '—'}</td>
+                <td style={ui.td}>{tiempoEsperaLabel(e)}</td>
                 <td style={ui.td}><span style={ui.badgeColor(e.estado)}>{e.estado}</span></td>
                 <td style={ui.td}>
                   {(e.estado === 'ESPERANDO' || e.estado === 'NOTIFICADO') && (
@@ -177,9 +198,14 @@ export function WaitlistPage() {
               <option value="URGENTE">Urgente</option>
             </select>
 
-            <button type="submit" disabled={createMutation.isPending} style={{ ...ui.primaryButton, width: '100%' }}>
-              Guardar
-            </button>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button type="button" style={{ ...ui.secondaryButton, flex: 1 }} onClick={() => setShowForm(false)}>
+                Cancelar
+              </button>
+              <button type="submit" disabled={createMutation.isPending} style={{ ...ui.primaryButton, flex: 1 }}>
+                Guardar
+              </button>
+            </div>
           </form>
         </Modal>
       )}
@@ -212,13 +238,18 @@ export function WaitlistPage() {
             ))}
           </select>
 
-          <button
-            disabled={!assignSlotId || assignMutation.isPending}
-            onClick={() => assignSlotId && assignMutation.mutate({ id: assigning.id, slotId: assignSlotId })}
-            style={{ ...ui.primaryButton, width: '100%' }}
-          >
-            Confirmar asignación
-          </button>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button type="button" style={{ ...ui.secondaryButton, flex: 1 }} onClick={closeAssign}>
+              Cancelar
+            </button>
+            <button
+              disabled={!assignSlotId || assignMutation.isPending}
+              onClick={() => assignSlotId && assignMutation.mutate({ id: assigning.id, slotId: assignSlotId })}
+              style={{ ...ui.primaryButton, flex: 1 }}
+            >
+              Confirmar asignación
+            </button>
+          </div>
         </Modal>
       )}
     </div>

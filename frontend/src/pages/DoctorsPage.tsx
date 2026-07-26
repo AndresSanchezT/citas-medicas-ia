@@ -212,9 +212,14 @@ export function DoctorsPage() {
             <input type="password" {...register('password')} style={ui.input} placeholder={editing ? 'Dejar en blanco para no cambiarla' : ''} />
             {errors.password && <small style={{ color: 'var(--color-critical)' }}>{errors.password.message}</small>}
 
-            <button type="submit" disabled={isSubmitting} style={{ ...ui.primaryButton, width: '100%' }}>
-              Guardar
-            </button>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button type="button" style={{ ...ui.secondaryButton, flex: 1 }} onClick={closeForm}>
+                Cancelar
+              </button>
+              <button type="submit" disabled={isSubmitting} style={{ ...ui.primaryButton, flex: 1 }}>
+                Guardar
+              </button>
+            </div>
           </form>
         </Modal>
       )}

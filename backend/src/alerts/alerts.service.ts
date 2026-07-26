@@ -3,7 +3,7 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { OnEvent } from '@nestjs/event-emitter';
 import { PrismaService } from '../prisma/prisma.service';
 import { EmailService } from '../common/email.service';
-import type { AppointmentCancelledEvent, AppointmentNoShowEvent } from '../appointments/appointments.service';
+import type { AppointmentSlotFreedEvent, AppointmentNoShowEvent } from '../appointments/appointments.service';
 
 const UMBRAL_INASISTENCIAS_FRECUENTES = 3;
 const DIAS_VENTANA_INASISTENCIAS = 60;
@@ -64,8 +64,10 @@ export class AlertsService {
 
   // ---------- Eventos de dominio (reactivos) ----------
 
-  @OnEvent('appointment.cancelled')
-  async handleAppointmentCancelled(payload: AppointmentCancelledEvent) {
+  // Un cupo puede liberarse por cancelación o por no-asistencia; en ambos casos hay que
+  // avisarle al primero en la lista de espera de ese médico.
+  @OnEvent('appointment.slot_freed')
+  async handleSlotFreed(payload: AppointmentSlotFreedEvent) {
     const candidatos = await this.prisma.waitlistEntry.findMany({
       where: { doctorId: payload.doctorId, estado: 'ESPERANDO' },
       orderBy: [{ prioridad: 'desc' }, { fechaSolicitud: 'asc' }],

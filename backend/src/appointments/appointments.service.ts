@@ -20,7 +20,9 @@ function franjaHorariaFrom(horaInicio: string): string {
   return `${hour.toString().padStart(2, '0')}:00-${(hour + 1).toString().padStart(2, '0')}:00`;
 }
 
-export interface AppointmentCancelledEvent {
+// Se emite cuando un cupo vuelve a DISPONIBLE por una acción del personal (cancelación o
+// no-asistencia) — en ambos casos hay que avisarle a quien esté primero en la lista de espera.
+export interface AppointmentSlotFreedEvent {
   appointmentId: number;
   doctorId: number;
   slotId: number | null;
@@ -197,13 +199,13 @@ export class AppointmentsService {
     });
 
     if (appointment.slotId) {
-      this.eventEmitter.emit('appointment.cancelled', {
+      this.eventEmitter.emit('appointment.slot_freed', {
         appointmentId: appointment.id,
         doctorId: appointment.doctorId,
         slotId: appointment.slotId,
         fecha: appointment.fecha,
         horaInicio: appointment.horaInicio,
-      } satisfies AppointmentCancelledEvent);
+      } satisfies AppointmentSlotFreedEvent);
     }
 
     return updated;
@@ -229,6 +231,16 @@ export class AppointmentsService {
       patientId: appointment.patientId,
       doctorId: appointment.doctorId,
     } satisfies AppointmentNoShowEvent);
+
+    if (appointment.slotId) {
+      this.eventEmitter.emit('appointment.slot_freed', {
+        appointmentId: appointment.id,
+        doctorId: appointment.doctorId,
+        slotId: appointment.slotId,
+        fecha: appointment.fecha,
+        horaInicio: appointment.horaInicio,
+      } satisfies AppointmentSlotFreedEvent);
+    }
 
     return updated;
   }
