@@ -1,6 +1,6 @@
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import type { DashboardPoint, DoctorRankingItem, OccupancyPoint } from '../api/reports';
+import type { DashboardPoint, DoctorRankingItem, OccupancyPoint, WaitTimeWeeklyPoint } from '../api/reports';
 
 type DocWithAutoTable = jsPDF & { lastAutoTable?: { finalY: number } };
 
@@ -38,13 +38,19 @@ function addSectionTitle(doc: DocWithAutoTable, title: string, y: number): numbe
   return y + 6;
 }
 
+const SEMANA_FORMATTER = new Intl.DateTimeFormat('es-PE', { day: '2-digit', month: 'short', year: 'numeric' });
+function formatSemana(iso: string): string {
+  return SEMANA_FORMATTER.format(new Date(`${iso}T00:00:00Z`));
+}
+
 export function downloadManagementReportPdf(params: {
   period: 'month' | 'quarter' | 'year';
   dashboard: DashboardPoint[];
   ranking: DoctorRankingItem[];
   occupancy: OccupancyPoint[];
+  waitTimeWeekly: WaitTimeWeeklyPoint[];
 }) {
-  const { period, dashboard, ranking, occupancy } = params;
+  const { period, dashboard, ranking, occupancy, waitTimeWeekly } = params;
   const doc = new jsPDF() as DocWithAutoTable;
   let y = addHeader(doc, `Reporte gerencial — periodo ${PERIOD_LABEL[period]}`);
 
@@ -81,6 +87,17 @@ export function downloadManagementReportPdf(params: {
     startY: y,
     head: [['Franja horaria', 'Pacientes']],
     body: occupancy.map((o) => [o.franjaHoraria, o.totalPacientes]),
+    theme: 'striped',
+    headStyles: { fillColor: HEADER_FILL },
+    styles: { fontSize: 9 },
+  });
+  y = (doc.lastAutoTable?.finalY ?? y) + 12;
+
+  y = addSectionTitle(doc, 'Tiempo de espera semanal por especialidad', y);
+  autoTable(doc, {
+    startY: y,
+    head: [['Semana', 'Especialidad', 'Espera prom. (min)']],
+    body: waitTimeWeekly.map((w) => [formatSemana(w.semana), w.especialidad, w.tiempoEsperaPromedioMinutos]),
     theme: 'striped',
     headStyles: { fillColor: HEADER_FILL },
     styles: { fontSize: 9 },

@@ -16,12 +16,22 @@ export class AlertsController {
     @Query('estado') estado?: string,
     @Query('destinatarioTipo') destinatarioTipo?: string,
     @Query('destinatarioId') destinatarioId?: string,
+    @Query('fechaDesde') fechaDesde?: string,
+    @Query('fechaHasta') fechaHasta?: string,
   ) {
     return this.alertsService.findAll({
       estado,
       destinatarioTipo,
       destinatarioId: destinatarioId ? Number(destinatarioId) : undefined,
+      fechaDesde,
+      fechaHasta,
     });
+  }
+
+  @Get('resumen')
+  @Roles(Role.ADMIN, Role.RECEPCIONISTA, Role.MEDICO)
+  getResumen(@Query('fechaDesde') fechaDesde?: string, @Query('fechaHasta') fechaHasta?: string) {
+    return this.alertsService.getResumen({ fechaDesde, fechaHasta });
   }
 
   @Patch(':id/read')

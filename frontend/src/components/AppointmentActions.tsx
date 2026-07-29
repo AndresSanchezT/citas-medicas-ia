@@ -35,6 +35,7 @@ interface AppointmentActionsProps {
   onCancel: (id: number) => void;
   onNoShow: (id: number) => void;
   onTriage?: (appointment: Appointment) => void;
+  onReschedule?: (appointment: Appointment) => void;
 }
 
 export function AppointmentActions({
@@ -47,6 +48,7 @@ export function AppointmentActions({
   onCancel,
   onNoShow,
   onTriage,
+  onReschedule,
 }: AppointmentActionsProps) {
   const puedeRecepcionar = PUEDE_RECEPCIONAR.includes(rol);
   const puedeAtender = PUEDE_ATENDER.includes(rol);
@@ -69,6 +71,7 @@ export function AppointmentActions({
     return (
       <>
         {puedeRecepcionar && btn('Check-in', () => onCheckIn(appointment.id))}
+        {puedeRecepcionar && onReschedule && btn('Derivar', () => onReschedule(appointment), 'var(--color-primary)')}
         {puedeCancelarONoShow && btn('No-asistió', () => onNoShow(appointment.id), 'var(--color-critical)')}
         {puedeCancelarONoShow && btn('Cancelar', () => onCancel(appointment.id), 'var(--text-muted)')}
       </>
@@ -79,6 +82,7 @@ export function AppointmentActions({
       <>
         {puedeRecepcionar && onTriage &&
           btn(appointment.triage ? 'Editar triaje' : 'Triaje', () => onTriage(appointment), 'var(--color-violet)')}
+        {puedeRecepcionar && onReschedule && btn('Derivar', () => onReschedule(appointment), 'var(--color-primary)')}
         {puedeAtender && btn('Iniciar consulta', () => onStart(appointment.id))}
         {puedeCancelarONoShow && btn('No-asistió', () => onNoShow(appointment.id), 'var(--color-critical)')}
         {puedeCancelarONoShow && btn('Cancelar', () => onCancel(appointment.id), 'var(--text-muted)')}

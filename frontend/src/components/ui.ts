@@ -105,6 +105,10 @@ const STATUS_MAP: Record<string, keyof typeof STATUS_TONES> = {
   MODERADO: 'warning',
   URGENTE: 'serious',
   CRITICO: 'critical',
+  // Resumen de evolución del triaje
+  mejora: 'good',
+  empeora: 'critical',
+  estable: 'neutral',
 };
 
 export function badgeColor(estado: string): CSSProperties {

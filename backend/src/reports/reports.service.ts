@@ -167,4 +167,53 @@ export class ReportsService {
       }))
       .sort((a, b) => b.totalPacientesAtendidos - a.totalPacientesAtendidos);
   }
+
+  // ---------- Tiempo de espera semanal por especialidad ----------
+
+  // Lunes de la semana ISO a la que pertenece `fecha` (fecha viene de DailyStats.fecha,
+  // que Prisma devuelve como medianoche UTC — por eso se opera todo en UTC).
+  private mondayOfWeek(fecha: Date): Date {
+    const date = new Date(Date.UTC(fecha.getUTCFullYear(), fecha.getUTCMonth(), fecha.getUTCDate()));
+    const dia = date.getUTCDay(); // 0=domingo .. 6=sábado
+    const diffALunes = (dia + 6) % 7;
+    date.setUTCDate(date.getUTCDate() - diffALunes);
+    return date;
+  }
+
+  async getWaitTimeWeeklyBySpecialty(from?: string, to?: string) {
+    const desde = from ? new Date(from) : new Date(new Date().setDate(new Date().getDate() - 12 * 7));
+    const hasta = to ? new Date(to) : new Date();
+
+    const stats = await this.prisma.dailyStats.findMany({
+      where: { fecha: { gte: desde, lte: hasta }, tiempoEsperaPromedioMinutos: { not: null } },
+      include: { doctor: { include: { specialty: true } } },
+      orderBy: { fecha: 'asc' },
+    });
+
+    const buckets = new Map<string, Map<string, { suma: number; conteo: number }>>();
+
+    for (const stat of stats) {
+      const semana = this.mondayOfWeek(stat.fecha).toISOString().split('T')[0];
+      const especialidad = stat.doctor.specialty.nombre;
+      if (!buckets.has(semana)) buckets.set(semana, new Map());
+      const porEspecialidad = buckets.get(semana)!;
+      if (!porEspecialidad.has(especialidad)) porEspecialidad.set(especialidad, { suma: 0, conteo: 0 });
+      const bucket = porEspecialidad.get(especialidad)!;
+      bucket.suma += stat.tiempoEsperaPromedioMinutos!;
+      bucket.conteo += 1;
+    }
+
+    const resultado: { semana: string; especialidad: string; tiempoEsperaPromedioMinutos: number }[] = [];
+    for (const [semana, porEspecialidad] of buckets) {
+      for (const [especialidad, { suma, conteo }] of porEspecialidad) {
+        resultado.push({
+          semana,
+          especialidad,
+          tiempoEsperaPromedioMinutos: Math.round((suma / conteo) * 10) / 10,
+        });
+      }
+    }
+
+    return resultado.sort((a, b) => a.semana.localeCompare(b.semana));
+  }
 }

@@ -12,13 +12,32 @@ import {
   Bar,
   Legend,
 } from 'recharts';
-import { getDashboard, getDoctorRanking, getScheduleOccupancy } from '../api/reports';
+import { getDashboard, getDoctorRanking, getScheduleOccupancy, getWaitTimeWeekly, type WaitTimeWeeklyPoint } from '../api/reports';
 import { downloadManagementReportPdf } from '../utils/pdfReports';
+import { colorForIndex } from '../utils/categoricalPalette';
 import * as ui from '../components/ui';
 
 // Paleta validada (colorblind-safe, ver skill de dataviz): azul categórico #1
 // para "lo normal/completado", rojo de estado crítico para inasistencias.
 const PALETTE = { primary: '#2a78d6', good: '#0ca30c', critical: '#c23636' };
+
+const SEMANA_FORMATTER = new Intl.DateTimeFormat('es-PE', { day: '2-digit', month: 'short' });
+function formatSemana(iso: string): string {
+  return SEMANA_FORMATTER.format(new Date(`${iso}T00:00:00Z`));
+}
+
+// El backend devuelve formato largo (una fila por semana+especialidad); Recharts necesita
+// una fila por semana con una columna por especialidad para dibujar una línea por cada una.
+function pivotWaitTimeWeekly(points: WaitTimeWeeklyPoint[]) {
+  const especialidades = Array.from(new Set(points.map((p) => p.especialidad))).sort();
+  const porSemana = new Map<string, Record<string, number | string>>();
+  for (const p of points) {
+    if (!porSemana.has(p.semana)) porSemana.set(p.semana, { semana: p.semana });
+    porSemana.get(p.semana)![p.especialidad] = p.tiempoEsperaPromedioMinutos;
+  }
+  const rows = Array.from(porSemana.values()).sort((a, b) => String(a.semana).localeCompare(String(b.semana)));
+  return { rows, especialidades };
+}
 
 function KpiIcon({ children }: { children: React.ReactNode }) {
   return (
@@ -62,6 +81,7 @@ export function DashboardPage() {
   });
   const rankingQuery = useQuery({ queryKey: ['doctor-ranking'], queryFn: getDoctorRanking });
   const occupancyQuery = useQuery({ queryKey: ['schedule-occupancy'], queryFn: getScheduleOccupancy });
+  const waitTimeWeeklyQuery = useQuery({ queryKey: ['wait-time-weekly'], queryFn: getWaitTimeWeekly });
 
   const data = dashboardQuery.data ?? [];
   const totalCompletadas = data.reduce((sum, d) => sum + d.totalCitasCompletadas, 0);
@@ -73,7 +93,12 @@ export function DashboardPage() {
         )
       : 0;
 
-  const isReportLoading = dashboardQuery.isLoading || rankingQuery.isLoading || occupancyQuery.isLoading;
+  const isReportLoading =
+    dashboardQuery.isLoading || rankingQuery.isLoading || occupancyQuery.isLoading || waitTimeWeeklyQuery.isLoading;
+
+  const { rows: waitTimeWeeklyRows, especialidades: waitTimeEspecialidades } = pivotWaitTimeWeekly(
+    waitTimeWeeklyQuery.data ?? [],
+  );
 
   function handleDownloadPdf() {
     downloadManagementReportPdf({
@@ -81,6 +106,7 @@ export function DashboardPage() {
       dashboard: data,
       ranking: rankingQuery.data ?? [],
       occupancy: occupancyQuery.data ?? [],
+      waitTimeWeekly: waitTimeWeeklyQuery.data ?? [],
     });
   }
 
@@ -116,6 +142,41 @@ export function DashboardPage() {
           value={promedioEspera}
           icon={<><circle cx="12" cy="12" r="8.5" /><path d="M12 7.5V12l3 2" /></>}
         />
+      </div>
+
+      <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap', marginBottom: '1.5rem' }}>
+        <ChartCard title="Tiempo de espera semanal por especialidad">
+          {waitTimeWeeklyQuery.isLoading ? (
+            <p>Cargando...</p>
+          ) : waitTimeWeeklyRows.length === 0 ? (
+            <p>Aún no hay suficiente historial semanal para graficar.</p>
+          ) : (
+            <ResponsiveContainer width="100%" height={320}>
+              <LineChart data={waitTimeWeeklyRows}>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                <XAxis dataKey="semana" tickFormatter={formatSemana} stroke="var(--text-muted)" tick={{ fontSize: 12 }} />
+                <YAxis stroke="var(--text-muted)" tick={{ fontSize: 12 }} label={{ value: 'Tiempo (min)', angle: -90, position: 'insideLeft', fontSize: 12, fill: 'var(--text-muted)' }} />
+                <Tooltip
+                  contentStyle={{ borderRadius: 8, border: '1px solid var(--border)', fontSize: 13 }}
+                  labelFormatter={(value) => `Semana del ${formatSemana(String(value))}`}
+                />
+                <Legend wrapperStyle={{ fontSize: 13 }} />
+                {waitTimeEspecialidades.map((especialidad, i) => (
+                  <Line
+                    key={especialidad}
+                    type="monotone"
+                    dataKey={especialidad}
+                    name={especialidad}
+                    stroke={colorForIndex(i)}
+                    strokeWidth={2}
+                    dot={{ r: 3 }}
+                    connectNulls
+                  />
+                ))}
+              </LineChart>
+            </ResponsiveContainer>
+          )}
+        </ChartCard>
       </div>
 
       <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap' }}>

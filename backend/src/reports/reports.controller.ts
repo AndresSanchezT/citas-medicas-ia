@@ -32,6 +32,12 @@ export class ReportsController {
     return this.reportsService.getDoctorRankingReport(from, to);
   }
 
+  @Get('wait-time-weekly')
+  @Roles(Role.ADMIN)
+  getWaitTimeWeekly(@Query('from') from?: string, @Query('to') to?: string) {
+    return this.reportsService.getWaitTimeWeeklyBySpecialty(from, to);
+  }
+
   @Post('generate-daily-stats')
   @Roles(Role.ADMIN)
   generateDailyStats(@Body('fecha') fecha?: string) {

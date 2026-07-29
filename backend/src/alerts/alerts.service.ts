@@ -26,15 +26,56 @@ export class AlertsService {
 
   // ---------- Consulta / gestión de alertas ----------
 
-  findAll(filters: { estado?: string; destinatarioTipo?: string; destinatarioId?: number }) {
+  findAll(filters: {
+    estado?: string;
+    destinatarioTipo?: string;
+    destinatarioId?: number;
+    fechaDesde?: string;
+    fechaHasta?: string;
+  }) {
     return this.prisma.alert.findMany({
       where: {
         ...(filters.estado ? { estado: filters.estado as any } : {}),
         ...(filters.destinatarioTipo ? { destinatarioTipo: filters.destinatarioTipo as any } : {}),
         ...(filters.destinatarioId ? { destinatarioId: filters.destinatarioId } : {}),
+        ...(filters.fechaDesde || filters.fechaHasta
+          ? {
+              fechaGeneracion: {
+                ...(filters.fechaDesde ? { gte: new Date(filters.fechaDesde) } : {}),
+                ...(filters.fechaHasta ? { lte: new Date(`${filters.fechaHasta}T23:59:59.999Z`) } : {}),
+              },
+            }
+          : {}),
       },
       orderBy: { fechaGeneracion: 'desc' },
     });
+  }
+
+  async getResumen(filters: { fechaDesde?: string; fechaHasta?: string }) {
+    const where = {
+      ...(filters.fechaDesde || filters.fechaHasta
+        ? {
+            fechaGeneracion: {
+              ...(filters.fechaDesde ? { gte: new Date(filters.fechaDesde) } : {}),
+              ...(filters.fechaHasta ? { lte: new Date(`${filters.fechaHasta}T23:59:59.999Z`) } : {}),
+            },
+          }
+        : {}),
+    };
+
+    const [porTipo, porEstado, total, pendientes] = await Promise.all([
+      this.prisma.alert.groupBy({ by: ['tipo'], where, _count: { _all: true } }),
+      this.prisma.alert.groupBy({ by: ['estado'], where, _count: { _all: true } }),
+      this.prisma.alert.count({ where }),
+      this.prisma.alert.count({ where: { ...where, estado: 'PENDIENTE' } }),
+    ]);
+
+    return {
+      total,
+      pendientes,
+      porTipo: porTipo.map((r) => ({ tipo: r.tipo, total: r._count._all })),
+      porEstado: porEstado.map((r) => ({ estado: r.estado, total: r._count._all })),
+    };
   }
 
   markAsRead(id: number) {
@@ -76,15 +117,25 @@ export class AlertsService {
     });
 
     for (const entry of candidatos) {
+      const fecha = payload.fecha.toISOString().split('T')[0];
       await this.crearAlerta({
         tipo: 'SLOT_LIBRE_DISPONIBLE',
         destinatarioTipo: 'PACIENTE',
         destinatarioId: entry.patientId,
         referenciaEntidadId: entry.id,
-        mensaje: `Se liberó un cupo el ${payload.fecha.toISOString().split('T')[0]} a las ${payload.horaInicio} con el médico solicitado. Contactar a ${entry.patient.nombres} ${entry.patient.apellidos} para confirmar.`,
+        mensaje: `Se liberó un cupo el ${fecha} a las ${payload.horaInicio} con el médico solicitado. Contactar a ${entry.patient.nombres} ${entry.patient.apellidos} para confirmar.`,
       });
       await this.prisma.waitlistEntry.update({ where: { id: entry.id }, data: { estado: 'NOTIFICADO' } });
       this.logger.log(`Alerta de cupo disponible generada para lista de espera ${entry.id}`);
+
+      if (entry.patient.email) {
+        await this.emailService.send(
+          entry.patient.email,
+          'Se liberó un cupo — Clínica Amazonas',
+          `Hola ${entry.patient.nombres}, se liberó un cupo el ${fecha} a las ${payload.horaInicio} con el médico que solicitaste. ` +
+            'Comunícate con recepción lo antes posible para confirmar tu cita, ya que este cupo puede ser tomado por otro paciente.',
+        );
+      }
     }
   }
 

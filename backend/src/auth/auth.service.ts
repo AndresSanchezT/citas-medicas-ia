@@ -14,7 +14,10 @@ export class AuthService {
   ) {}
 
   async login(dto: LoginDto) {
-    const user = await this.prisma.user.findUnique({ where: { email: dto.email } });
+    const user = await this.prisma.user.findUnique({
+      where: { email: dto.email },
+      include: { doctor: { include: { specialty: true } } },
+    });
     if (!user || !user.activo) {
       this.logger.warn(`Login rechazado para ${dto.email}: usuario no existe o está inactivo`);
       throw new UnauthorizedException('Credenciales inválidas');
@@ -33,7 +36,14 @@ export class AuthService {
     );
     return {
       accessToken,
-      usuario: { id: user.id, nombre: user.nombre, email: user.email, rol: user.rol, doctorId: user.doctorId },
+      usuario: {
+        id: user.id,
+        nombre: user.nombre,
+        email: user.email,
+        rol: user.rol,
+        doctorId: user.doctorId,
+        especialidad: user.doctor?.specialty.nombre ?? null,
+      },
     };
   }
 }

@@ -8,6 +8,7 @@ import { createSpecialty, fetchSpecialties } from '../api/specialties';
 import { Modal } from '../components/Modal';
 import { DoctorTimeOffModal } from '../components/DoctorTimeOffModal';
 import { DoctorScheduleModal } from '../components/DoctorScheduleModal';
+import { useAuth } from '../context/AuthContext';
 import * as ui from '../components/ui';
 
 const doctorSchema = z.object({
@@ -23,6 +24,10 @@ type DoctorForm = z.infer<typeof doctorSchema>;
 
 export function DoctorsPage() {
   const queryClient = useQueryClient();
+  const { usuario } = useAuth();
+  // Debe reflejar los mismos @Roles() del backend (doctors.controller.ts): crear, editar
+  // y desactivar médicos es tarea exclusiva del administrador.
+  const puedeGestionar = usuario?.rol === 'ADMIN';
   const [editing, setEditing] = useState<Doctor | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [newSpecialty, setNewSpecialty] = useState('');
@@ -104,9 +109,11 @@ export function DoctorsPage() {
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
         <h1>Médicos</h1>
-        <button style={ui.primaryButton} onClick={openCreate}>
-          + Nuevo médico
-        </button>
+        {puedeGestionar && (
+          <button style={ui.primaryButton} onClick={openCreate}>
+            + Nuevo médico
+          </button>
+        )}
       </div>
 
       <div style={ui.card}>
@@ -144,15 +151,23 @@ export function DoctorsPage() {
                   <button style={{ ...ui.secondaryButton, marginRight: 8 }} onClick={() => setTimeOffDoctor(d)}>
                     Descansos/Vacaciones
                   </button>
-                  <button style={{ ...ui.secondaryButton, marginRight: 8 }} onClick={() => openEdit(d)}>
-                    Editar
-                  </button>
-                  <button
-                    style={{ ...ui.secondaryButton, color: 'var(--color-critical)', borderColor: 'var(--color-critical)' }}
-                    onClick={() => deactivateMutation.mutate(d.id)}
-                  >
-                    Desactivar
-                  </button>
+                  {puedeGestionar && (
+                    <button style={{ ...ui.secondaryButton, marginRight: 8 }} onClick={() => openEdit(d)}>
+                      Editar
+                    </button>
+                  )}
+                  {puedeGestionar && (
+                    <button
+                      style={{ ...ui.secondaryButton, color: 'var(--color-critical)', borderColor: 'var(--color-critical)' }}
+                      onClick={() => {
+                        if (window.confirm(`¿Desactivar a ${d.nombres} ${d.apellidos}? Ya no aparecerá disponible para agendar citas.`)) {
+                          deactivateMutation.mutate(d.id);
+                        }
+                      }}
+                    >
+                      Desactivar
+                    </button>
+                  )}
                 </td>
               </tr>
             ))}
@@ -164,15 +179,15 @@ export function DoctorsPage() {
         <Modal title={editing ? 'Editar médico' : 'Nuevo médico'} onClose={closeForm}>
           <form onSubmit={handleSubmit(onSubmit)}>
             <label>Nombres</label>
-            <input {...register('nombres')} style={ui.input} />
+            <input {...register('nombres')} placeholder="Ej. Carlos" style={ui.input} />
             {errors.nombres && <small style={{ color: 'var(--color-critical)' }}>{errors.nombres.message}</small>}
 
             <label>Apellidos</label>
-            <input {...register('apellidos')} style={ui.input} />
+            <input {...register('apellidos')} placeholder="Ej. García Flores" style={ui.input} />
             {errors.apellidos && <small style={{ color: 'var(--color-critical)' }}>{errors.apellidos.message}</small>}
 
             <label>Documento de identidad</label>
-            <input {...register('documentoIdentidad')} style={ui.input} />
+            <input {...register('documentoIdentidad')} placeholder="Ej. 10203040" style={ui.input} />
             {errors.documentoIdentidad && <small style={{ color: 'var(--color-critical)' }}>{errors.documentoIdentidad.message}</small>}
 
             <label>Especialidad</label>
@@ -202,14 +217,19 @@ export function DoctorsPage() {
             </div>
 
             <label>Teléfono</label>
-            <input {...register('telefono')} style={ui.input} />
+            <input {...register('telefono')} placeholder="Ej. 987654321" style={ui.input} />
 
             <label>Email {!editing && '(será su usuario de acceso)'}</label>
-            <input {...register('email')} style={ui.input} />
+            <input {...register('email')} placeholder="correo@ejemplo.com" style={ui.input} />
             {errors.email && <small style={{ color: 'var(--color-critical)' }}>{errors.email.message}</small>}
 
             <label>Contraseña {!editing && '(acceso a "Mi agenda")'}</label>
-            <input type="password" {...register('password')} style={ui.input} placeholder={editing ? 'Dejar en blanco para no cambiarla' : ''} />
+            <input
+              type="password"
+              {...register('password')}
+              style={ui.input}
+              placeholder={editing ? 'Dejar en blanco para no cambiarla' : 'Mínimo 6 caracteres'}
+            />
             {errors.password && <small style={{ color: 'var(--color-critical)' }}>{errors.password.message}</small>}
 
             <div style={{ display: 'flex', gap: 8 }}>

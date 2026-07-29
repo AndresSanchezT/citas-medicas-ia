@@ -92,6 +92,11 @@ export async function markNoShow(id: number): Promise<Appointment> {
   return data;
 }
 
+export async function rescheduleAppointment(id: number, newSlotId: number): Promise<Appointment> {
+  const { data } = await apiClient.patch<Appointment>(`/appointments/${id}/reschedule`, { newSlotId });
+  return data;
+}
+
 export async function upsertTriage(
   appointmentId: number,
   input: {

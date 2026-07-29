@@ -39,3 +39,24 @@ export async function updatePatient(id: number, input: Partial<PatientInput>): P
 export async function deactivatePatient(id: number): Promise<void> {
   await apiClient.delete(`/patients/${id}`);
 }
+
+export interface TriageSummaryHallazgo {
+  campo: string;
+  tendencia: 'mejora' | 'empeora' | 'estable';
+  detalle: string;
+}
+
+export interface TriageSummaryResponse {
+  disponible: boolean;
+  mensaje: string;
+  hallazgos: TriageSummaryHallazgo[];
+  totalTriajesConsiderados: number;
+  primerTriaje?: string;
+  ultimoTriaje?: string;
+  disclaimer: string;
+}
+
+export async function fetchTriageSummary(patientId: number): Promise<TriageSummaryResponse> {
+  const { data } = await apiClient.get<TriageSummaryResponse>(`/patients/${patientId}/triage-summary`);
+  return data;
+}

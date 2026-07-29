@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { fetchAppointments } from '../api/appointments';
+import { fetchAppointments, type Appointment } from '../api/appointments';
 import { useAuth } from '../context/AuthContext';
 import { AppointmentActions, ESTADO_LABEL, PRIORIDAD_LABEL } from '../components/AppointmentActions';
+import { PatientHistoryModal } from '../components/PatientHistoryModal';
 import { useAppointmentMutations } from '../hooks/useAppointmentMutations';
 import * as ui from '../components/ui';
 
@@ -13,6 +14,7 @@ function todayISO(): string {
 export function MyAgendaPage() {
   const { usuario } = useAuth();
   const [fecha, setFecha] = useState(todayISO());
+  const [historyPatient, setHistoryPatient] = useState<Appointment['patient'] | null>(null);
   const doctorId = usuario?.doctorId ?? undefined;
 
   const { data: appointments = [], isLoading } = useQuery({
@@ -41,7 +43,14 @@ export function MyAgendaPage() {
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-        <h1>Mi agenda</h1>
+        <div>
+          <h1 style={{ marginBottom: 2 }}>Mi agenda</h1>
+          {usuario?.especialidad && (
+            <p style={{ color: 'var(--text-secondary)', fontSize: 13.5 }}>
+              {usuario.nombre} · {usuario.especialidad}
+            </p>
+          )}
+        </div>
       </div>
 
       <div style={{ display: 'flex', gap: 12, marginBottom: '1rem', alignItems: 'center' }}>
@@ -86,12 +95,24 @@ export function MyAgendaPage() {
                   ) : a.triage ? 'Sin clasificar' : '—'}
                 </td>
                 <td style={ui.td}><span style={ui.badgeColor(a.estado)}>{ESTADO_LABEL[a.estado]}</span></td>
-                <td style={ui.td}><AppointmentActions appointment={a} rol={usuario!.rol} {...appointmentActions} /></td>
+                <td style={ui.td}>
+                  <button
+                    style={{ ...ui.secondaryButton, marginRight: 6 }}
+                    onClick={() => setHistoryPatient(a.patient)}
+                  >
+                    Ver historial
+                  </button>
+                  <AppointmentActions appointment={a} rol={usuario!.rol} {...appointmentActions} />
+                </td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
+
+      {historyPatient && (
+        <PatientHistoryModal patient={historyPatient} onClose={() => setHistoryPatient(null)} />
+      )}
     </div>
   );
 }

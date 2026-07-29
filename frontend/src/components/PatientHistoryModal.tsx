@@ -1,6 +1,6 @@
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { fetchAppointments, type Triage } from '../api/appointments';
-import type { Patient } from '../api/patients';
+import { fetchTriageSummary, type Patient } from '../api/patients';
 import { ESTADO_LABEL, PRIORIDAD_LABEL } from './AppointmentActions';
 import { Modal } from './Modal';
 import * as ui from './ui';
@@ -31,8 +31,48 @@ export function PatientHistoryModal({ patient, onClose }: PatientHistoryModalPro
     return fechaCompare !== 0 ? fechaCompare : b.horaInicio.localeCompare(a.horaInicio);
   });
 
+  const summaryMutation = useMutation({
+    mutationFn: () => fetchTriageSummary(patient.id),
+  });
+
   return (
     <Modal title={`Historial de ${patient.nombres} ${patient.apellidos}`} onClose={onClose} width={860}>
+      <div style={{ marginBottom: '1rem' }}>
+        <button
+          style={ui.secondaryButton}
+          disabled={summaryMutation.isPending}
+          onClick={() => summaryMutation.mutate()}
+        >
+          {summaryMutation.isPending ? 'Analizando triaje...' : '✨ Generar resumen de evolución con IA'}
+        </button>
+
+        {summaryMutation.data && (
+          <div style={{ ...ui.card, marginTop: 10, padding: '0.9rem 1.1rem', background: 'var(--color-primary-tint)' }}>
+            {summaryMutation.data.disponible ? (
+              <>
+                {summaryMutation.data.primerTriaje && summaryMutation.data.ultimoTriaje && (
+                  <p style={{ marginBottom: 6, fontSize: 12.5, color: 'var(--text-secondary)' }}>
+                    Comparando el triaje del <strong>{summaryMutation.data.primerTriaje}</strong> con el del{' '}
+                    <strong>{summaryMutation.data.ultimoTriaje}</strong> ({summaryMutation.data.totalTriajesConsiderados} triajes en el historial).
+                  </p>
+                )}
+                <p style={{ marginBottom: 8 }}>{summaryMutation.data.mensaje}</p>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+                  {summaryMutation.data.hallazgos.map((h) => (
+                    <span key={h.campo} style={{ ...ui.badgeColor(h.tendencia), fontSize: 12 }}>
+                      {h.campo}: {h.detalle}
+                    </span>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <p style={{ marginBottom: 8 }}>{summaryMutation.data.mensaje}</p>
+            )}
+            <small style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>{summaryMutation.data.disclaimer}</small>
+          </div>
+        )}
+      </div>
+
       <div style={{ maxHeight: '60vh', overflowY: 'auto' }}>
         <table style={ui.table}>
           <thead>

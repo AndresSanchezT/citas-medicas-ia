@@ -2,6 +2,7 @@ import { BadRequestException, ForbiddenException, Injectable, NotFoundException 
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Role } from '../../generated/prisma/enums';
 import type { AuthenticatedUser } from '../auth/decorators/current-user.decorator';
+import { EmailService } from '../common/email.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateAppointmentDto } from './dto/create-appointment.dto';
 import { CreateTriageDto } from './dto/create-triage.dto';
@@ -41,6 +42,7 @@ export class AppointmentsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly eventEmitter: EventEmitter2,
+    private readonly emailService: EmailService,
   ) {}
 
   async create(dto: CreateAppointmentDto) {
@@ -55,8 +57,8 @@ export class AppointmentsService {
       throw new BadRequestException('El cupo no corresponde al médico indicado');
     }
 
-    return this.prisma.$transaction(async (tx) => {
-      const appointment = await tx.appointment.create({
+    const appointment = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.appointment.create({
         data: {
           patientId: dto.patientId,
           doctorId: dto.doctorId,
@@ -70,8 +72,24 @@ export class AppointmentsService {
         },
       });
       await tx.appointmentSlot.update({ where: { id: slot.id }, data: { estado: 'RESERVADO' } });
-      return appointment;
+      return created;
     });
+
+    const [patient, doctor] = await Promise.all([
+      this.prisma.patient.findUnique({ where: { id: dto.patientId } }),
+      this.prisma.doctor.findUnique({ where: { id: dto.doctorId } }),
+    ]);
+    if (patient?.email && doctor) {
+      const fecha = appointment.fecha.toISOString().split('T')[0];
+      await this.emailService.send(
+        patient.email,
+        'Confirmación de tu cita — Clínica Amazonas',
+        `Hola ${patient.nombres}, tu cita con ${doctor.nombres} ${doctor.apellidos} quedó agendada para el ${fecha} a las ${appointment.horaInicio}. ` +
+          `${dto.motivoConsulta ? `Motivo: ${dto.motivoConsulta}. ` : ''}Si necesitas cancelarla o reprogramarla, comunícate con recepción.`,
+      );
+    }
+
+    return appointment;
   }
 
   findAll(filters: {
@@ -102,7 +120,12 @@ export class AppointmentsService {
         ...fechaFiltro,
         ...(filters.estado ? { estado: filters.estado as any } : {}),
       },
-      include: { patient: true, doctor: true, waitTimeHistory: true, triage: true },
+      include: {
+        patient: true,
+        doctor: { include: { specialty: true } },
+        waitTimeHistory: true,
+        triage: true,
+      },
       orderBy: [{ fecha: 'asc' }, { horaInicio: 'asc' }],
     });
   }
@@ -110,7 +133,7 @@ export class AppointmentsService {
   async findOne(id: number) {
     const appointment = await this.prisma.appointment.findUnique({
       where: { id },
-      include: { patient: true, doctor: true, triage: true },
+      include: { patient: true, doctor: { include: { specialty: true } }, triage: true },
     });
     if (!appointment) {
       throw new NotFoundException(`Cita ${id} no encontrada`);

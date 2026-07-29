@@ -6,6 +6,7 @@ import { z } from 'zod';
 import { createPatient, deactivatePatient, fetchPatients, updatePatient, type Patient } from '../api/patients';
 import { Modal } from '../components/Modal';
 import { PatientHistoryModal } from '../components/PatientHistoryModal';
+import { useAuth } from '../context/AuthContext';
 import * as ui from '../components/ui';
 
 const patientSchema = z.object({
@@ -20,6 +21,11 @@ type PatientForm = z.infer<typeof patientSchema>;
 
 export function PatientsPage() {
   const queryClient = useQueryClient();
+  const { usuario } = useAuth();
+  // Debe reflejar los mismos @Roles() del backend (patients.controller.ts): crear/editar
+  // es tarea de recepción o admin; desactivar (soft-delete) queda exclusivo del admin.
+  const puedeEditar = usuario?.rol === 'ADMIN' || usuario?.rol === 'RECEPCIONISTA';
+  const puedeDesactivar = usuario?.rol === 'ADMIN';
   const [search, setSearch] = useState('');
   const [editing, setEditing] = useState<Patient | null>(null);
   const [showForm, setShowForm] = useState(false);
@@ -76,9 +82,11 @@ export function PatientsPage() {
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
         <h1>Pacientes</h1>
-        <button style={ui.primaryButton} onClick={openCreate}>
-          + Nuevo paciente
-        </button>
+        {puedeEditar && (
+          <button style={ui.primaryButton} onClick={openCreate}>
+            + Nuevo paciente
+          </button>
+        )}
       </div>
 
       <input
@@ -120,15 +128,23 @@ export function PatientsPage() {
                   <button style={{ ...ui.secondaryButton, marginRight: 8 }} onClick={() => setHistoryPatient(p)}>
                     Ver historial
                   </button>
-                  <button style={{ ...ui.secondaryButton, marginRight: 8 }} onClick={() => openEdit(p)}>
-                    Editar
-                  </button>
-                  <button
-                    style={{ ...ui.secondaryButton, color: 'var(--color-critical)', borderColor: 'var(--color-critical)' }}
-                    onClick={() => deactivateMutation.mutate(p.id)}
-                  >
-                    Desactivar
-                  </button>
+                  {puedeEditar && (
+                    <button style={{ ...ui.secondaryButton, marginRight: 8 }} onClick={() => openEdit(p)}>
+                      Editar
+                    </button>
+                  )}
+                  {puedeDesactivar && (
+                    <button
+                      style={{ ...ui.secondaryButton, color: 'var(--color-critical)', borderColor: 'var(--color-critical)' }}
+                      onClick={() => {
+                        if (window.confirm(`¿Desactivar a ${p.nombres} ${p.apellidos}? Ya no aparecerá disponible para agendar citas.`)) {
+                          deactivateMutation.mutate(p.id);
+                        }
+                      }}
+                    >
+                      Desactivar
+                    </button>
+                  )}
                 </td>
               </tr>
             ))}
@@ -140,26 +156,26 @@ export function PatientsPage() {
         <Modal title={editing ? 'Editar paciente' : 'Nuevo paciente'} onClose={closeForm}>
           <form onSubmit={handleSubmit((values) => saveMutation.mutate(values))}>
             <label>Nombres</label>
-            <input {...register('nombres')} style={ui.input} />
+            <input {...register('nombres')} placeholder="Ej. María José" style={ui.input} />
             {errors.nombres && <small style={{ color: 'var(--color-critical)' }}>{errors.nombres.message}</small>}
 
             <label>Apellidos</label>
-            <input {...register('apellidos')} style={ui.input} />
+            <input {...register('apellidos')} placeholder="Ej. García López" style={ui.input} />
             {errors.apellidos && <small style={{ color: 'var(--color-critical)' }}>{errors.apellidos.message}</small>}
 
             <label>Documento de identidad</label>
-            <input {...register('documentoIdentidad')} style={ui.input} />
+            <input {...register('documentoIdentidad')} placeholder="Ej. 12345678" style={ui.input} />
             {errors.documentoIdentidad && <small style={{ color: 'var(--color-critical)' }}>{errors.documentoIdentidad.message}</small>}
 
             <label>Teléfono</label>
-            <input {...register('telefono')} style={ui.input} />
+            <input {...register('telefono')} placeholder="Ej. 987654321" style={ui.input} />
 
             <label>Email</label>
-            <input {...register('email')} style={ui.input} />
+            <input {...register('email')} placeholder="correo@ejemplo.com" style={ui.input} />
             {errors.email && <small style={{ color: 'var(--color-critical)' }}>{errors.email.message}</small>}
 
             <label>Dirección</label>
-            <input {...register('direccion')} style={ui.input} />
+            <input {...register('direccion')} placeholder="Ej. Jr. Los Álamos 123, Tarapoto" style={ui.input} />
 
             <div style={{ display: 'flex', gap: 8 }}>
               <button type="button" style={{ ...ui.secondaryButton, flex: 1 }} onClick={closeForm}>

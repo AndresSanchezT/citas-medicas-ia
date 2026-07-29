@@ -8,6 +8,7 @@ import { fetchSpecialties } from '../api/specialties';
 import { fetchSlots } from '../api/schedules';
 import { Modal } from '../components/Modal';
 import { TriageModal } from '../components/TriageModal';
+import { ReagendarModal } from '../components/ReagendarModal';
 import { AppointmentActions, ESTADO_LABEL } from '../components/AppointmentActions';
 import { useAppointmentMutations } from '../hooks/useAppointmentMutations';
 import { useAuth } from '../context/AuthContext';
@@ -31,6 +32,7 @@ export function AppointmentsPage() {
   const [showForm, setShowForm] = useState(false);
   const [selectedDoctorId, setSelectedDoctorId] = useState<number | null>(null);
   const [triageAppointment, setTriageAppointment] = useState<Appointment | null>(null);
+  const [reagendarAppointment, setReagendarAppointment] = useState<Appointment | null>(null);
 
   const { data: appointments = [], isLoading } = useQuery({
     queryKey: ['appointments', filtroEstado, filtroDoctor, filtroEspecialidad, filtroFechaDesde, filtroFechaHasta],
@@ -166,7 +168,13 @@ export function AppointmentsPage() {
                 <td style={ui.td}>{a.horaInicio}</td>
                 <td style={ui.td}><span style={ui.badgeColor(a.estado)}>{ESTADO_LABEL[a.estado]}</span></td>
                 <td style={ui.td}>
-                  <AppointmentActions appointment={a} rol={usuario!.rol} onTriage={setTriageAppointment} {...appointmentActions} />
+                  <AppointmentActions
+                    appointment={a}
+                    rol={usuario!.rol}
+                    onTriage={setTriageAppointment}
+                    onReschedule={setReagendarAppointment}
+                    {...appointmentActions}
+                  />
                 </td>
               </tr>
             ))}
@@ -208,7 +216,7 @@ export function AppointmentsPage() {
             </select>
 
             <label>Motivo de consulta</label>
-            <input {...register('motivoConsulta')} style={ui.input} />
+            <input {...register('motivoConsulta')} placeholder="Ej. Dolor de cabeza, control rutinario..." style={ui.input} />
 
             <div style={{ display: 'flex', gap: 8 }}>
               <button type="button" style={{ ...ui.secondaryButton, flex: 1 }} onClick={closeForm}>
@@ -224,6 +232,10 @@ export function AppointmentsPage() {
 
       {triageAppointment && (
         <TriageModal appointment={triageAppointment} onClose={() => setTriageAppointment(null)} />
+      )}
+
+      {reagendarAppointment && (
+        <ReagendarModal appointment={reagendarAppointment} onClose={() => setReagendarAppointment(null)} />
       )}
     </div>
   );

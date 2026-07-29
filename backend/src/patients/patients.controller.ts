@@ -41,6 +41,12 @@ export class PatientsController {
     return this.patientsService.findOne(id);
   }
 
+  @Get(':id/triage-summary')
+  @Roles(Role.ADMIN, Role.RECEPCIONISTA, Role.MEDICO)
+  getTriageSummary(@Param('id', ParseIntPipe) id: number) {
+    return this.patientsService.getTriageSummary(id);
+  }
+
   @Patch(':id')
   @Roles(Role.ADMIN, Role.RECEPCIONISTA)
   update(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdatePatientDto) {

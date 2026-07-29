@@ -151,13 +151,13 @@ export function LoginPage() {
           <form onSubmit={handleSubmit(onSubmit)} style={{ padding: '2.25rem 2rem' }}>
             <div style={{ marginBottom: '1rem' }}>
               <label>Usuario (correo)</label>
-              <input {...register('email')} type="text" style={ui.input} />
+              <input {...register('email')} type="text" placeholder="correo@ejemplo.com" style={ui.input} />
               {errors.email && <small style={{ color: 'var(--color-critical)' }}>{errors.email.message}</small>}
             </div>
 
             <div style={{ marginBottom: '0.5rem' }}>
               <label>Contraseña</label>
-              <input {...register('password')} type="password" style={ui.input} />
+              <input {...register('password')} type="password" placeholder="Tu contraseña" style={ui.input} />
               {errors.password && <small style={{ color: 'var(--color-critical)' }}>{errors.password.message}</small>}
             </div>
 

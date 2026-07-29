@@ -42,8 +42,12 @@ export function WaitlistPage() {
   const [assigning, setAssigning] = useState<WaitlistEntry | null>(null);
   const [assignDoctorId, setAssignDoctorId] = useState<number | null>(null);
   const [assignSlotId, setAssignSlotId] = useState<number | null>(null);
+  const [filtroEstado, setFiltroEstado] = useState('');
 
-  const { data: entries = [], isLoading } = useQuery({ queryKey: ['waitlist'], queryFn: () => fetchWaitlist() });
+  const { data: entries = [], isLoading } = useQuery({
+    queryKey: ['waitlist', filtroEstado],
+    queryFn: () => fetchWaitlist(filtroEstado || undefined),
+  });
   const { data: ranking = [] } = useQuery({ queryKey: ['demand-ranking'], queryFn: fetchDemandRanking });
   const { data: patients = [] } = useQuery({ queryKey: ['patients', ''], queryFn: () => fetchPatients() });
   const { data: doctors = [] } = useQuery({ queryKey: ['doctors'], queryFn: fetchDoctors });
@@ -103,9 +107,18 @@ export function WaitlistPage() {
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
         <h1>Lista de espera</h1>
-        <button style={ui.primaryButton} onClick={openCreate}>
-          + Anotar paciente
-        </button>
+        <div style={{ display: 'flex', gap: 10 }}>
+          <select value={filtroEstado} onChange={(e) => setFiltroEstado(e.target.value)} style={{ ...ui.input, marginBottom: 0, width: 200 }}>
+            <option value="">Todos los estados</option>
+            <option value="ESPERANDO">Esperando</option>
+            <option value="NOTIFICADO">Notificado</option>
+            <option value="ASIGNADO">Asignado</option>
+            <option value="EXPIRADO">Expirado</option>
+          </select>
+          <button style={ui.primaryButton} onClick={openCreate}>
+            + Anotar paciente
+          </button>
+        </div>
       </div>
 
       {ranking.length > 0 && (
@@ -147,7 +160,11 @@ export function WaitlistPage() {
                       </button>
                       <button
                         style={{ ...ui.secondaryButton, color: 'var(--text-muted)' }}
-                        onClick={() => expireMutation.mutate(e.id)}
+                        onClick={() => {
+                          if (window.confirm(`¿Expirar la espera de ${e.patient?.nombres} ${e.patient?.apellidos}? Ya no se le podrá asignar un cupo desde aquí.`)) {
+                            expireMutation.mutate(e.id);
+                          }
+                        }}
                       >
                         Expirar
                       </button>

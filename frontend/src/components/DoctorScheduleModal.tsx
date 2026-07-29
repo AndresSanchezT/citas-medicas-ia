@@ -96,7 +96,7 @@ export function DoctorScheduleModal({ doctor, onClose }: DoctorScheduleModalProp
         </div>
         <div>
           <label>Duración cupo (min)</label>
-          <input type="number" min={5} {...register('duracionSlotMinutos', { required: true })} style={{ ...ui.input, width: 90 }} />
+          <input type="number" min={5} placeholder="20" {...register('duracionSlotMinutos', { required: true })} style={{ ...ui.input, width: 90 }} />
         </div>
         <button type="submit" disabled={createMutation.isPending} style={{ ...ui.primaryButton, marginBottom: '1rem' }}>
           Agregar

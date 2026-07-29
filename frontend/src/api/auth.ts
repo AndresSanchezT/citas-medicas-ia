@@ -6,6 +6,7 @@ export interface Usuario {
   email: string;
   rol: 'ADMIN' | 'MEDICO' | 'RECEPCIONISTA';
   doctorId: number | null;
+  especialidad: string | null;
 }
 
 export interface LoginResponse {
