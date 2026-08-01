@@ -20,7 +20,7 @@ function Icon({ children }: { children: ReactNode }) {
 }
 
 const icons = {
-  dashboard: (
+  reportes: (
     <Icon><path d="M3 13h4V6H3v7Zm0 5h4v-3H3v3ZM10 18h4V9h-4v9ZM17 18h4V4h-4v14Z" /></Icon>
   ),
   agenda: (
@@ -44,7 +44,7 @@ const icons = {
 };
 
 const menuItems: MenuItem[] = [
-  { to: '/', label: 'Dashboard', roles: ['ADMIN'], icon: icons.dashboard },
+  { to: '/reportes', label: 'Reportes', roles: ['ADMIN'], icon: icons.reportes },
   { to: '/mi-agenda', label: 'Mi agenda', roles: ['MEDICO'], icon: icons.agenda },
   { to: '/pacientes', label: 'Pacientes', roles: ['ADMIN', 'RECEPCIONISTA', 'MEDICO'], icon: icons.pacientes },
   { to: '/medicos', label: 'Médicos', roles: ['ADMIN', 'RECEPCIONISTA', 'MEDICO'], icon: icons.medicos },

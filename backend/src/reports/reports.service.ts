@@ -216,4 +216,34 @@ export class ReportsService {
 
     return resultado.sort((a, b) => a.semana.localeCompare(b.semana));
   }
+
+  // ---------- Indicador de retención de ingresos (política de cancelación) ----------
+
+  async getRetencionIngresos(from?: string, to?: string) {
+    const desde = from ? new Date(from) : new Date(new Date().setMonth(new Date().getMonth() - 12));
+    const hasta = to ? new Date(to) : new Date();
+
+    const citas = await this.prisma.appointment.findMany({
+      where: { pagado: true, fecha: { gte: desde, lte: hasta }, reembolso: { not: 'NO_APLICA' } },
+      select: { monto: true, reembolso: true },
+    });
+
+    let montoRetenido = 0;
+    let montoReembolsado = 0;
+    let citasConDineroPerdido = 0;
+    let citasReembolsadas = 0;
+
+    for (const cita of citas) {
+      const monto = cita.monto ?? 0;
+      if (cita.reembolso === 'PERDIDO') {
+        montoRetenido += monto;
+        citasConDineroPerdido++;
+      } else if (cita.reembolso === 'REEMBOLSADO') {
+        montoReembolsado += monto;
+        citasReembolsadas++;
+      }
+    }
+
+    return { montoRetenido, montoReembolsado, citasConDineroPerdido, citasReembolsadas };
+  }
 }

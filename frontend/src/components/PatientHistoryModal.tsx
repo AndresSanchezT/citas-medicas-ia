@@ -21,10 +21,11 @@ function triageSummary(triage: Triage): string {
 }
 
 export function PatientHistoryModal({ patient, onClose }: PatientHistoryModalProps) {
-  const { data: appointments = [], isLoading } = useQuery({
+  const { data: appointmentsResponse, isLoading } = useQuery({
     queryKey: ['appointments', 'historial-paciente', patient.id],
     queryFn: () => fetchAppointments({ patientId: patient.id }),
   });
+  const appointments = appointmentsResponse?.data ?? [];
 
   const historial = [...appointments].sort((a, b) => {
     const fechaCompare = b.fecha.localeCompare(a.fecha);

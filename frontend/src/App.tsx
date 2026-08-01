@@ -1,15 +1,23 @@
-import { Route, Routes } from 'react-router-dom';
-import { AuthProvider } from './context/AuthContext';
+import { Navigate, Route, Routes } from 'react-router-dom';
+import { AuthProvider, useAuth } from './context/AuthContext';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { Layout } from './components/Layout';
 import { LoginPage } from './pages/LoginPage';
-import { DashboardPage } from './pages/DashboardPage';
+import { ReportsPage } from './pages/ReportsPage';
 import { MyAgendaPage } from './pages/MyAgendaPage';
 import { PatientsPage } from './pages/PatientsPage';
 import { DoctorsPage } from './pages/DoctorsPage';
 import { AppointmentsPage } from './pages/AppointmentsPage';
 import { WaitlistPage } from './pages/WaitlistPage';
 import { AlertsPage } from './pages/AlertsPage';
+import { defaultRouteForRole } from './utils/roleRoutes';
+
+// "/" ya no tiene una página propia: cada rol aterriza en la suya (Reportes, Mi agenda o
+// Citas). Esto solo se alcanza estando autenticado (el ProtectedRoute padre ya lo garantiza).
+function RootRedirect() {
+  const { usuario } = useAuth();
+  return <Navigate to={defaultRouteForRole(usuario!.rol)} replace />;
+}
 
 function App() {
   return (
@@ -23,11 +31,12 @@ function App() {
             </ProtectedRoute>
           }
         >
+          <Route path="/" element={<RootRedirect />} />
           <Route
-            path="/"
+            path="/reportes"
             element={
               <ProtectedRoute allowedRoles={['ADMIN']}>
-                <DashboardPage />
+                <ReportsPage />
               </ProtectedRoute>
             }
           />

@@ -25,6 +25,31 @@ const PUEDE_RECEPCIONAR: Usuario['rol'][] = ['ADMIN', 'RECEPCIONISTA'];
 const PUEDE_ATENDER: Usuario['rol'][] = ['ADMIN', 'MEDICO'];
 const PUEDE_CANCELAR_O_NOSHOW: Usuario['rol'][] = ['ADMIN', 'RECEPCIONISTA', 'MEDICO'];
 
+// Política "reprogramación única con plazo de 24h": avisa de antemano si el pago se
+// reembolsa o se pierde, y que tendrá 24h para reprogramar si corresponde (ver
+// AppointmentsService.resolverPoliticaFalla en el backend, que aplica la misma regla
+// tanto a cancelaciones como a inasistencias).
+function confirmarCancelacion(appointment: Appointment): boolean {
+  if (!appointment.pagado) {
+    return window.confirm('¿Cancelar esta cita?');
+  }
+  const monto = appointment.monto != null ? `S/ ${appointment.monto}` : 'el pago';
+  const mensaje = appointment.reprogramacionGratuitaUsada
+    ? `Esta cita ya usó su única oportunidad. Al cancelarla se PIERDE ${monto} — no se reembolsa ni se puede reprogramar. ¿Confirmar cancelación?`
+    : `Esta cita está pagada (${monto}). Es su primera falla, así que el pago SE REEMBOLSA y tendrá 24 horas para reprogramar la siguiente cita. ¿Confirmar cancelación?`;
+  return window.confirm(mensaje);
+}
+
+// La cita ya cancelada/no-asistida solo puede reprogramarse de nuevo si esa falla le dejó
+// el pago a salvo y el plazo de 24h todavía no venció (ver tieneDerechoARecuperar backend).
+function puedeRecuperar(appointment: Appointment): boolean {
+  return (
+    appointment.reembolso === 'REEMBOLSADO' &&
+    !!appointment.plazoReprogramacionHasta &&
+    new Date(appointment.plazoReprogramacionHasta).getTime() >= Date.now()
+  );
+}
+
 interface AppointmentActionsProps {
   appointment: Appointment;
   rol: Usuario['rol'];
@@ -73,7 +98,7 @@ export function AppointmentActions({
         {puedeRecepcionar && btn('Check-in', () => onCheckIn(appointment.id))}
         {puedeRecepcionar && onReschedule && btn('Derivar', () => onReschedule(appointment), 'var(--color-primary)')}
         {puedeCancelarONoShow && btn('No-asistió', () => onNoShow(appointment.id), 'var(--color-critical)')}
-        {puedeCancelarONoShow && btn('Cancelar', () => onCancel(appointment.id), 'var(--text-muted)')}
+        {puedeCancelarONoShow && btn('Cancelar', () => { if (confirmarCancelacion(appointment)) onCancel(appointment.id); }, 'var(--text-muted)')}
       </>
     );
   }
@@ -85,13 +110,25 @@ export function AppointmentActions({
         {puedeRecepcionar && onReschedule && btn('Derivar', () => onReschedule(appointment), 'var(--color-primary)')}
         {puedeAtender && btn('Iniciar consulta', () => onStart(appointment.id))}
         {puedeCancelarONoShow && btn('No-asistió', () => onNoShow(appointment.id), 'var(--color-critical)')}
-        {puedeCancelarONoShow && btn('Cancelar', () => onCancel(appointment.id), 'var(--text-muted)')}
+        {puedeCancelarONoShow && btn('Cancelar', () => { if (confirmarCancelacion(appointment)) onCancel(appointment.id); }, 'var(--text-muted)')}
       </>
     );
   }
   if (appointment.estado === 'EN_CURSO') {
     if (!puedeAtender) return <span style={{ color: 'var(--text-muted)' }}>En curso</span>;
     return btn('Completar', () => onComplete(appointment.id), 'var(--color-good)');
+  }
+  if ((appointment.estado === 'CANCELADA' || appointment.estado === 'NO_ASISTIO') && puedeRecuperar(appointment)) {
+    if (!puedeRecepcionar || !onReschedule) return <span style={{ color: 'var(--text-muted)' }}>—</span>;
+    const plazo = new Date(appointment.plazoReprogramacionHasta!);
+    return (
+      <div>
+        {btn('Reprogramar', () => onReschedule(appointment), 'var(--color-primary)')}
+        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
+          Plazo hasta {plazo.toLocaleString('es-PE', { dateStyle: 'short', timeStyle: 'short' })}
+        </div>
+      </div>
+    );
   }
   return <span style={{ color: 'var(--text-muted)' }}>—</span>;
 }

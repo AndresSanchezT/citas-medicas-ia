@@ -1,4 +1,4 @@
-import { IsInt, IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsBoolean, IsInt, IsNumber, IsOptional, IsString, Min, MaxLength } from 'class-validator';
 
 export class CreateAppointmentDto {
   @IsInt()
@@ -18,4 +18,15 @@ export class CreateAppointmentDto {
   @IsOptional()
   @IsString()
   notas?: string;
+
+  // Pago simulado (no hay pasarela real integrada) — habilita la política de cancelación
+  // "reprogramación única gratuita" sobre esta cita.
+  @IsOptional()
+  @IsBoolean()
+  pagado?: boolean;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  monto?: number;
 }

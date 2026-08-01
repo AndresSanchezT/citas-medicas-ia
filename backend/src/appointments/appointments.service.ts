@@ -1,5 +1,6 @@
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
+import { Cron, CronExpression } from '@nestjs/schedule';
 import { Role } from '../../generated/prisma/enums';
 import type { AuthenticatedUser } from '../auth/decorators/current-user.decorator';
 import { EmailService } from '../common/email.service';
@@ -39,6 +40,8 @@ export interface AppointmentNoShowEvent {
 
 @Injectable()
 export class AppointmentsService {
+  private readonly logger = new Logger(AppointmentsService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly eventEmitter: EventEmitter2,
@@ -69,6 +72,8 @@ export class AppointmentsService {
           motivoConsulta: dto.motivoConsulta,
           notas: dto.notas,
           estado: 'PENDIENTE',
+          pagado: dto.pagado ?? false,
+          monto: dto.pagado ? dto.monto : undefined,
         },
       });
       await tx.appointmentSlot.update({ where: { id: slot.id }, data: { estado: 'RESERVADO' } });
@@ -92,7 +97,7 @@ export class AppointmentsService {
     return appointment;
   }
 
-  findAll(filters: {
+  async findAll(filters: {
     doctorId?: number;
     patientId?: number;
     specialtyId?: number;
@@ -100,6 +105,8 @@ export class AppointmentsService {
     fechaDesde?: string;
     fechaHasta?: string;
     estado?: string;
+    page?: number;
+    pageSize?: number;
   }) {
     const fechaFiltro = filters.fecha
       ? { fecha: new Date(filters.fecha) }
@@ -112,22 +119,36 @@ export class AppointmentsService {
           }
         : {};
 
-    return this.prisma.appointment.findMany({
-      where: {
-        ...(filters.doctorId ? { doctorId: filters.doctorId } : {}),
-        ...(filters.patientId ? { patientId: filters.patientId } : {}),
-        ...(filters.specialtyId ? { doctor: { specialtyId: filters.specialtyId } } : {}),
-        ...fechaFiltro,
-        ...(filters.estado ? { estado: filters.estado as any } : {}),
-      },
-      include: {
-        patient: true,
-        doctor: { include: { specialty: true } },
-        waitTimeHistory: true,
-        triage: true,
-      },
-      orderBy: [{ fecha: 'asc' }, { horaInicio: 'asc' }],
-    });
+    const where = {
+      ...(filters.doctorId ? { doctorId: filters.doctorId } : {}),
+      ...(filters.patientId ? { patientId: filters.patientId } : {}),
+      ...(filters.specialtyId ? { doctor: { specialtyId: filters.specialtyId } } : {}),
+      ...fechaFiltro,
+      ...(filters.estado ? { estado: filters.estado as any } : {}),
+    };
+
+    // pageSize por defecto alto: las pantallas que no paginan (Mi agenda del día,
+    // historial de un paciente) siguen trayendo todo en una sola página.
+    const page = filters.page && filters.page > 0 ? filters.page : 1;
+    const pageSize = filters.pageSize && filters.pageSize > 0 ? filters.pageSize : 1000;
+
+    const [data, total] = await this.prisma.$transaction([
+      this.prisma.appointment.findMany({
+        where,
+        include: {
+          patient: true,
+          doctor: { include: { specialty: true } },
+          waitTimeHistory: true,
+          triage: true,
+        },
+        orderBy: [{ fecha: 'asc' }, { horaInicio: 'asc' }],
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+      this.prisma.appointment.count({ where }),
+    ]);
+
+    return { data, total, page, pageSize };
   }
 
   async findOne(id: number) {
@@ -206,6 +227,25 @@ export class AppointmentsService {
     });
   }
 
+  // Política "reprogramación única con plazo de 24h": se evalúa igual sea por cancelación
+  // o por inasistencia. Si la cita no está pagada, no hay nada que resolver. Si está pagada
+  // y todavía no había usado su oportunidad, esta falla la consume: el pago queda a salvo
+  // y se abre una ventana de 24h para reprogramar (ver reschedule()). Si ya la había usado
+  // (esta es la segunda falla, o el plazo anterior ya había vencido), se pierde el pago.
+  private resolverPoliticaFalla(appointment: { pagado: boolean; reprogramacionGratuitaUsada: boolean }) {
+    if (!appointment.pagado) {
+      return { reembolso: 'NO_APLICA' as const, reprogramacionGratuitaUsada: appointment.reprogramacionGratuitaUsada, plazoReprogramacionHasta: null as Date | null };
+    }
+    if (appointment.reprogramacionGratuitaUsada) {
+      return { reembolso: 'PERDIDO' as const, reprogramacionGratuitaUsada: true, plazoReprogramacionHasta: null as Date | null };
+    }
+    return {
+      reembolso: 'REEMBOLSADO' as const,
+      reprogramacionGratuitaUsada: true,
+      plazoReprogramacionHasta: new Date(Date.now() + 24 * 60 * 60 * 1000),
+    };
+  }
+
   async cancel(id: number, user: AuthenticatedUser) {
     const appointment = await this.findOne(id);
     verificarPropiaCita(appointment, user);
@@ -213,8 +253,13 @@ export class AppointmentsService {
       throw new BadRequestException(`No se puede cancelar una cita en estado ${appointment.estado}`);
     }
 
+    const politica = this.resolverPoliticaFalla(appointment);
+
     const updated = await this.prisma.$transaction(async (tx) => {
-      const result = await tx.appointment.update({ where: { id }, data: { estado: 'CANCELADA' } });
+      const result = await tx.appointment.update({
+        where: { id },
+        data: { estado: 'CANCELADA', ...politica },
+      });
       if (appointment.slotId) {
         await tx.appointmentSlot.update({ where: { id: appointment.slotId }, data: { estado: 'DISPONIBLE' } });
       }
@@ -241,8 +286,10 @@ export class AppointmentsService {
       throw new BadRequestException(`No se puede marcar como no-asistió una cita en estado ${appointment.estado}`);
     }
 
+    const politica = this.resolverPoliticaFalla(appointment);
+
     const updated = await this.prisma.$transaction(async (tx) => {
-      const result = await tx.appointment.update({ where: { id }, data: { estado: 'NO_ASISTIO' } });
+      const result = await tx.appointment.update({ where: { id }, data: { estado: 'NO_ASISTIO', ...politica } });
       if (appointment.slotId) {
         await tx.appointmentSlot.update({ where: { id: appointment.slotId }, data: { estado: 'DISPONIBLE' } });
       }
@@ -268,9 +315,41 @@ export class AppointmentsService {
     return updated;
   }
 
-  async reschedule(id: number, dto: RescheduleAppointmentDto) {
+  // Una cita ya cancelada/no-asistida solo puede "recuperarse" (reprogramarse de nuevo) si
+  // la falla anterior le dejó el pago a salvo y todavía está dentro de su ventana de 24h.
+  private tieneDerechoARecuperar(appointment: {
+    estado: string;
+    reembolso: string;
+    plazoReprogramacionHasta: Date | null;
+  }): boolean {
+    return (
+      (appointment.estado === 'CANCELADA' || appointment.estado === 'NO_ASISTIO') &&
+      appointment.reembolso === 'REEMBOLSADO' &&
+      appointment.plazoReprogramacionHasta != null &&
+      appointment.plazoReprogramacionHasta.getTime() >= Date.now()
+    );
+  }
+
+  // Reagendar NUNCA muta la cita existente: la cancela (si corresponde) y crea una fila
+  // nueva enlazada a ella, para que quede un historial de auditoría real de quién
+  // reprogramó, cuándo y por qué. Dos casos:
+  //  - Proactivo ("Derivar"): la cita todavía está Pendiente/Confirmada; es un movimiento
+  //    administrativo (ej. el médico no va a estar disponible) y no consume la política.
+  //  - De recuperación: la cita ya está Cancelada/No-asistió y el paciente todavía tiene
+  //    su ventana de 24h vigente (ver resolverPoliticaFalla en cancel/markNoShow).
+  async reschedule(id: number, dto: RescheduleAppointmentDto, user: AuthenticatedUser) {
     const appointment = await this.findOne(id);
-    if (appointment.estado === 'COMPLETADA' || appointment.estado === 'CANCELADA') {
+    const esProactiva = appointment.estado === 'PENDIENTE' || appointment.estado === 'CONFIRMADA';
+    const esRecuperacion = !esProactiva && this.tieneDerechoARecuperar(appointment);
+
+    if (!esProactiva && !esRecuperacion) {
+      if (appointment.estado === 'CANCELADA' || appointment.estado === 'NO_ASISTIO') {
+        throw new BadRequestException(
+          appointment.reembolso === 'PERDIDO'
+            ? 'Esta cita ya no tiene derecho a reprogramación: se perdió esa oportunidad.'
+            : 'El plazo de 24 horas para reprogramar esta cita ya venció.',
+        );
+      }
       throw new BadRequestException(`No se puede reagendar una cita en estado ${appointment.estado}`);
     }
 
@@ -282,23 +361,67 @@ export class AppointmentsService {
       throw new BadRequestException('El nuevo cupo seleccionado ya no está disponible');
     }
 
-    return this.prisma.$transaction(async (tx) => {
-      if (appointment.slotId) {
-        await tx.appointmentSlot.update({ where: { id: appointment.slotId }, data: { estado: 'DISPONIBLE' } });
+    const nuevaCita = await this.prisma.$transaction(async (tx) => {
+      if (esProactiva) {
+        // 1) Liberación inmediata: solo aplica acá — en la recuperación el cupo original
+        //    ya se liberó cuando se canceló/faltó, y la cita ya quedó en estado terminal.
+        if (appointment.slotId) {
+          await tx.appointmentSlot.update({ where: { id: appointment.slotId }, data: { estado: 'DISPONIBLE' } });
+        }
+        await tx.appointment.update({ where: { id }, data: { estado: 'CANCELADA' } });
       }
+
+      // 2) Creación del nuevo registro: fila nueva con la fecha/hora elegida, en Pendiente.
       await tx.appointmentSlot.update({ where: { id: newSlot.id }, data: { estado: 'RESERVADO' } });
-      return tx.appointment.update({
-        where: { id },
+      return tx.appointment.create({
         data: {
-          slotId: newSlot.id,
+          patientId: appointment.patientId,
           doctorId: newSlot.doctorId,
+          slotId: newSlot.id,
           fecha: newSlot.fecha,
           horaInicio: newSlot.horaInicio,
           horaFin: newSlot.horaFin,
+          motivoConsulta: appointment.motivoConsulta,
           estado: 'PENDIENTE',
+          pagado: appointment.pagado,
+          monto: appointment.monto,
+          // La recuperación ya venía con reprogramacionGratuitaUsada=true (la puso el
+          // cancel()/markNoShow() anterior); una derivación proactiva no cambia nada.
+          reprogramacionGratuitaUsada: appointment.reprogramacionGratuitaUsada,
+          // 3) Historial de auditoría: queda enlazada a la cita original, con quién y por qué.
+          citaOrigenId: appointment.id,
+          motivoReprogramacion: dto.motivo,
+          reprogramadaPorUserId: user.userId,
         },
       });
     });
+
+    if (esProactiva && appointment.slotId) {
+      this.eventEmitter.emit('appointment.slot_freed', {
+        appointmentId: appointment.id,
+        doctorId: appointment.doctorId,
+        slotId: appointment.slotId,
+        fecha: appointment.fecha,
+        horaInicio: appointment.horaInicio,
+      } satisfies AppointmentSlotFreedEvent);
+    }
+
+    return this.findOne(nuevaCita.id);
+  }
+
+  // Si el paciente deja pasar las 24h sin reprogramar, pierde el derecho: el pago pasa de
+  // "a salvo" a "perdido" automáticamente, sin que nadie tenga que intervenir a mano.
+  @Cron(CronExpression.EVERY_HOUR)
+  async handleVencimientoPlazoReprogramacion() {
+    const vencidas = await this.prisma.appointment.updateMany({
+      where: { reembolso: 'REEMBOLSADO', plazoReprogramacionHasta: { lt: new Date() } },
+      data: { reembolso: 'PERDIDO' },
+    });
+    if (vencidas.count > 0) {
+      this.logger.log(
+        `${vencidas.count} cita(s) perdieron el reembolso por no reprogramarse dentro de las 24 horas.`,
+      );
+    }
   }
 
   async upsertTriage(appointmentId: number, dto: CreateTriageDto) {

@@ -38,6 +38,12 @@ export class ReportsController {
     return this.reportsService.getWaitTimeWeeklyBySpecialty(from, to);
   }
 
+  @Get('retencion-ingresos')
+  @Roles(Role.ADMIN)
+  getRetencionIngresos(@Query('from') from?: string, @Query('to') to?: string) {
+    return this.reportsService.getRetencionIngresos(from, to);
+  }
+
   @Post('generate-daily-stats')
   @Roles(Role.ADMIN)
   generateDailyStats(@Body('fecha') fecha?: string) {

@@ -41,6 +41,8 @@ export class AppointmentsController {
     @Query('fechaDesde') fechaDesde?: string,
     @Query('fechaHasta') fechaHasta?: string,
     @Query('estado') estado?: string,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
   ) {
     // Un médico solo puede listar su propia agenda (doctorId forzado al suyo), salvo cuando
     // consulta el historial de un paciente puntual (patientId), donde sí puede ver todos sus
@@ -59,6 +61,8 @@ export class AppointmentsController {
       fechaDesde,
       fechaHasta,
       estado,
+      page: page ? Number(page) : undefined,
+      pageSize: pageSize ? Number(pageSize) : undefined,
     });
   }
 
@@ -100,8 +104,12 @@ export class AppointmentsController {
 
   @Patch(':id/reschedule')
   @Roles(Role.ADMIN, Role.RECEPCIONISTA)
-  reschedule(@Param('id', ParseIntPipe) id: number, @Body() dto: RescheduleAppointmentDto) {
-    return this.appointmentsService.reschedule(id, dto);
+  reschedule(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: RescheduleAppointmentDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.appointmentsService.reschedule(id, dto, user);
   }
 
   @Post(':id/triage')

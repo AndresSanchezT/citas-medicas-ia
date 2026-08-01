@@ -12,6 +12,8 @@ export type AppointmentStatus =
 
 export type TriagePrioridad = 'LEVE' | 'MODERADO' | 'URGENTE' | 'CRITICO';
 
+export type EstadoReembolso = 'NO_APLICA' | 'REEMBOLSADO' | 'PERDIDO';
+
 export interface Triage {
   id: number;
   appointmentId: number;
@@ -42,6 +44,21 @@ export interface Appointment {
   doctor: Doctor;
   waitTimeHistory: { tiempoEsperaMinutosReal: number } | null;
   triage: Triage | null;
+  pagado: boolean;
+  monto: number | null;
+  reprogramacionGratuitaUsada: boolean;
+  reembolso: EstadoReembolso;
+  plazoReprogramacionHasta: string | null;
+  citaOrigenId: number | null;
+  motivoReprogramacion: string | null;
+  reprogramadaPorUserId: number | null;
+}
+
+export interface PaginatedAppointments {
+  data: Appointment[];
+  total: number;
+  page: number;
+  pageSize: number;
 }
 
 export async function fetchAppointments(filters: {
@@ -52,8 +69,10 @@ export async function fetchAppointments(filters: {
   fechaDesde?: string;
   fechaHasta?: string;
   estado?: string;
-}): Promise<Appointment[]> {
-  const { data } = await apiClient.get<Appointment[]>('/appointments', { params: filters });
+  page?: number;
+  pageSize?: number;
+}): Promise<PaginatedAppointments> {
+  const { data } = await apiClient.get<PaginatedAppointments>('/appointments', { params: filters });
   return data;
 }
 
@@ -62,6 +81,8 @@ export async function createAppointment(input: {
   doctorId: number;
   slotId: number;
   motivoConsulta?: string;
+  pagado?: boolean;
+  monto?: number;
 }): Promise<Appointment> {
   const { data } = await apiClient.post<Appointment>('/appointments', input);
   return data;
@@ -92,8 +113,8 @@ export async function markNoShow(id: number): Promise<Appointment> {
   return data;
 }
 
-export async function rescheduleAppointment(id: number, newSlotId: number): Promise<Appointment> {
-  const { data } = await apiClient.patch<Appointment>(`/appointments/${id}/reschedule`, { newSlotId });
+export async function rescheduleAppointment(id: number, newSlotId: number, motivo?: string): Promise<Appointment> {
+  const { data } = await apiClient.patch<Appointment>(`/appointments/${id}/reschedule`, { newSlotId, motivo });
   return data;
 }
 

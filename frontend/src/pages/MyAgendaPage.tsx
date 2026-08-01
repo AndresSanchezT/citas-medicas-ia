@@ -17,11 +17,12 @@ export function MyAgendaPage() {
   const [historyPatient, setHistoryPatient] = useState<Appointment['patient'] | null>(null);
   const doctorId = usuario?.doctorId ?? undefined;
 
-  const { data: appointments = [], isLoading } = useQuery({
+  const { data: appointmentsResponse, isLoading } = useQuery({
     queryKey: ['appointments', 'mi-agenda', doctorId, fecha],
     queryFn: () => fetchAppointments({ doctorId, fecha }),
     enabled: !!doctorId,
   });
+  const appointments = appointmentsResponse?.data ?? [];
 
   const appointmentActions = useAppointmentMutations(['appointments', 'mi-agenda', doctorId, fecha]);
 

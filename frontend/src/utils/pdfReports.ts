@@ -38,6 +38,20 @@ function addSectionTitle(doc: DocWithAutoTable, title: string, y: number): numbe
   return y + 6;
 }
 
+function addSubsectionTitle(doc: DocWithAutoTable, title: string, y: number): number {
+  if (y > 265) {
+    doc.addPage();
+    y = 20;
+  }
+  doc.setFontSize(10.5);
+  doc.setFont('helvetica', 'bolditalic');
+  doc.setTextColor(60);
+  doc.text(title, 14, y);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(0);
+  return y + 5;
+}
+
 const SEMANA_FORMATTER = new Intl.DateTimeFormat('es-PE', { day: '2-digit', month: 'short', year: 'numeric' });
 function formatSemana(iso: string): string {
   return SEMANA_FORMATTER.format(new Date(`${iso}T00:00:00Z`));
@@ -94,14 +108,24 @@ export function downloadManagementReportPdf(params: {
   y = (doc.lastAutoTable?.finalY ?? y) + 12;
 
   y = addSectionTitle(doc, 'Tiempo de espera semanal por especialidad', y);
-  autoTable(doc, {
-    startY: y,
-    head: [['Semana', 'Especialidad', 'Espera prom. (min)']],
-    body: waitTimeWeekly.map((w) => [formatSemana(w.semana), w.especialidad, w.tiempoEsperaPromedioMinutos]),
-    theme: 'striped',
-    headStyles: { fillColor: HEADER_FILL },
-    styles: { fontSize: 9 },
-  });
+  const especialidades = [...new Set(waitTimeWeekly.map((w) => w.especialidad))].sort((a, b) =>
+    a.localeCompare(b, 'es'),
+  );
+  for (const especialidad of especialidades) {
+    y = addSubsectionTitle(doc, especialidad, y);
+    autoTable(doc, {
+      startY: y,
+      head: [['Semana', 'Espera prom. (min)']],
+      body: waitTimeWeekly
+        .filter((w) => w.especialidad === especialidad)
+        .sort((a, b) => a.semana.localeCompare(b.semana))
+        .map((w) => [formatSemana(w.semana), w.tiempoEsperaPromedioMinutos]),
+      theme: 'striped',
+      headStyles: { fillColor: HEADER_FILL },
+      styles: { fontSize: 9 },
+    });
+    y = (doc.lastAutoTable?.finalY ?? y) + 10;
+  }
 
   const fecha = new Date().toISOString().slice(0, 10);
   doc.save(`reporte-gerencial-${period}-${fecha}.pdf`);

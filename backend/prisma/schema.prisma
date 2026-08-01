@@ -77,6 +77,15 @@ enum TriagePrioridad {
   CRITICO
 }
 
+// Política de cancelación "reprogramación única gratuita": la primera vez que se
+// reprograma o cancela una cita pagada, el dinero queda a salvo; una segunda cancelación
+// sobre una cita que ya usó esa oportunidad gratuita pierde el pago (se lo queda la clínica).
+enum EstadoReembolso {
+  NO_APLICA
+  REEMBOLSADO
+  PERDIDO
+}
+
 model Specialty {
   id      Int      @id @default(autoincrement())
   nombre  String   @unique @db.VarChar(100)
@@ -185,9 +194,27 @@ model Appointment {
   motivoConsulta String?    @map("motivo_consulta") @db.VarChar(255)
   notas          String?    @db.Text
 
+  // Política de "reprogramación única con plazo": si la cita pagada se cancela o el
+  // paciente falta, la PRIMERA vez el pago queda a salvo y tiene 24h (plazoReprogramacionHasta)
+  // para reservar su próxima cita; si no reprograma a tiempo, o si falta/cancela otra vez
+  // esa segunda cita, pierde el pago y ya no tiene derecho a una nueva reprogramación
+  // (ver AppointmentsService.cancel/markNoShow/reschedule).
+  pagado                        Boolean         @default(false)
+  monto                         Float?
+  reprogramacionGratuitaUsada   Boolean         @default(false) @map("reprogramacion_gratuita_usada")
+  reembolso                     EstadoReembolso @default(NO_APLICA)
+  plazoReprogramacionHasta      DateTime?       @map("plazo_reprogramacion_hasta")
+
   horaLlegadaReal         DateTime? @map("hora_llegada_real")
   horaAtencionInicioReal  DateTime? @map("hora_atencion_inicio_real")
   horaAtencionFinReal     DateTime? @map("hora_atencion_fin_real")
+
+  // Auditoría de reprogramación: al reagendar (Derivar) NO se muta la cita original —
+  // se cancela y se crea una fila nueva enlazada a ella, dejando registro de quién hizo
+  // el cambio y por qué. citaOrigenId vive en la cita NUEVA y apunta a la ANTIGUA.
+  citaOrigenId          Int?    @unique @map("cita_origen_id")
+  motivoReprogramacion  String? @map("motivo_reprogramacion") @db.VarChar(255)
+  reprogramadaPorUserId Int?    @map("reprogramada_por_user_id")
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -195,6 +222,10 @@ model Appointment {
   patient Patient          @relation(fields: [patientId], references: [id])
   doctor  Doctor           @relation(fields: [doctorId], references: [id])
   slot    AppointmentSlot? @relation(fields: [slotId], references: [id])
+
+  citaOrigen       Appointment? @relation("Reprogramacion", fields: [citaOrigenId], references: [id])
+  citaReprogramada Appointment? @relation("Reprogramacion")
+  reprogramadaPor  User?        @relation("ReprogramadaPor", fields: [reprogramadaPorUserId], references: [id])
 
   waitTimeHistory WaitTimeHistory?
   triage          Triage?
@@ -297,6 +328,8 @@ model User {
   createdAt    DateTime @default(now()) @map("created_at")
 
   doctor Doctor? @relation(fields: [doctorId], references: [id])
+
+  citasReprogramadas Appointment[] @relation("ReprogramadaPor")
 
   @@map("users")
 }

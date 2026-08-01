@@ -1,5 +1,22 @@
 import { useMutation, useQueryClient, type QueryKey } from '@tanstack/react-query';
-import { cancelAppointment, checkIn, completeAppointment, markNoShow, startConsultation } from '../api/appointments';
+import { cancelAppointment, checkIn, completeAppointment, markNoShow, startConsultation, type Appointment } from '../api/appointments';
+
+// El "No-asistió" no tiene confirmación previa (se usa seguido, para varios pacientes
+// seguidos), así que en vez de interrumpir con un confirm() se avisa el resultado de la
+// política DESPUÉS, para que recepción sepa si debe avisarle al paciente sobre el plazo.
+function avisarResultadoPolitica(appointment: Appointment) {
+  if (!appointment.pagado) return;
+  const monto = appointment.monto != null ? `S/ ${appointment.monto}` : 'el pago';
+  if (appointment.reembolso === 'REEMBOLSADO' && appointment.plazoReprogramacionHasta) {
+    const plazo = new Date(appointment.plazoReprogramacionHasta).toLocaleString('es-PE', {
+      dateStyle: 'short',
+      timeStyle: 'short',
+    });
+    window.alert(`${monto} queda a salvo. El paciente tiene hasta el ${plazo} (24h) para reprogramar.`);
+  } else if (appointment.reembolso === 'PERDIDO') {
+    window.alert(`Se perdió ${monto}: ya había usado su única oportunidad de reprogramación.`);
+  }
+}
 
 export function useAppointmentMutations(invalidateKey: QueryKey) {
   const queryClient = useQueryClient();
@@ -9,7 +26,13 @@ export function useAppointmentMutations(invalidateKey: QueryKey) {
   const startMutation = useMutation({ mutationFn: startConsultation, onSuccess: invalidate });
   const completeMutation = useMutation({ mutationFn: completeAppointment, onSuccess: invalidate });
   const cancelMutation = useMutation({ mutationFn: cancelAppointment, onSuccess: invalidate });
-  const noShowMutation = useMutation({ mutationFn: markNoShow, onSuccess: invalidate });
+  const noShowMutation = useMutation({
+    mutationFn: markNoShow,
+    onSuccess: (appointment) => {
+      invalidate();
+      avisarResultadoPolitica(appointment);
+    },
+  });
 
   const busy =
     checkInMutation.isPending ||

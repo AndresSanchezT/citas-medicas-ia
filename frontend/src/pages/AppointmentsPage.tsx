@@ -19,6 +19,8 @@ interface NewAppointmentForm {
   doctorId: number;
   slotId: number;
   motivoConsulta?: string;
+  pagado?: boolean;
+  monto?: string;
 }
 
 export function AppointmentsPage() {
@@ -29,13 +31,16 @@ export function AppointmentsPage() {
   const [filtroEspecialidad, setFiltroEspecialidad] = useState('');
   const [filtroFechaDesde, setFiltroFechaDesde] = useState('');
   const [filtroFechaHasta, setFiltroFechaHasta] = useState('');
+  const [page, setPage] = useState(1);
+  const pageSize = 10;
   const [showForm, setShowForm] = useState(false);
+  const [nuevaCitaEspecialidadId, setNuevaCitaEspecialidadId] = useState('');
   const [selectedDoctorId, setSelectedDoctorId] = useState<number | null>(null);
   const [triageAppointment, setTriageAppointment] = useState<Appointment | null>(null);
   const [reagendarAppointment, setReagendarAppointment] = useState<Appointment | null>(null);
 
-  const { data: appointments = [], isLoading } = useQuery({
-    queryKey: ['appointments', filtroEstado, filtroDoctor, filtroEspecialidad, filtroFechaDesde, filtroFechaHasta],
+  const { data: appointmentsResponse, isLoading } = useQuery({
+    queryKey: ['appointments', filtroEstado, filtroDoctor, filtroEspecialidad, filtroFechaDesde, filtroFechaHasta, page],
     queryFn: () =>
       fetchAppointments({
         estado: filtroEstado || undefined,
@@ -43,8 +48,22 @@ export function AppointmentsPage() {
         specialtyId: filtroEspecialidad ? Number(filtroEspecialidad) : undefined,
         fechaDesde: filtroFechaDesde || undefined,
         fechaHasta: filtroFechaHasta || undefined,
+        page,
+        pageSize,
       }),
+    placeholderData: (previous) => previous,
   });
+  const appointments = appointmentsResponse?.data ?? [];
+  const total = appointmentsResponse?.total ?? 0;
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+
+  // Cualquier cambio de filtro invalida la página actual: siempre se vuelve a la primera.
+  function actualizarFiltro(setter: (value: string) => void) {
+    return (value: string) => {
+      setter(value);
+      setPage(1);
+    };
+  }
 
   const { data: patients = [] } = useQuery({ queryKey: ['patients', ''], queryFn: () => fetchPatients() });
   const { data: doctors = [] } = useQuery({ queryKey: ['doctors'], queryFn: fetchDoctors });
@@ -55,8 +74,9 @@ export function AppointmentsPage() {
     enabled: !!selectedDoctorId,
   });
 
-  const { register, handleSubmit, reset, watch } = useForm<NewAppointmentForm>();
+  const { register, handleSubmit, reset, watch, setValue } = useForm<NewAppointmentForm>();
   const watchedDoctorId = watch('doctorId');
+  const watchedPagado = watch('pagado');
 
   const appointmentActions = useAppointmentMutations(['appointments']);
   const createMutation = useMutation({
@@ -69,7 +89,8 @@ export function AppointmentsPage() {
   });
 
   function openCreate() {
-    reset({ patientId: undefined, doctorId: undefined, slotId: undefined, motivoConsulta: '' });
+    reset({ patientId: undefined, doctorId: undefined, slotId: undefined, motivoConsulta: '', pagado: false, monto: '' });
+    setNuevaCitaEspecialidadId('');
     setSelectedDoctorId(null);
     setShowForm(true);
   }
@@ -77,6 +98,17 @@ export function AppointmentsPage() {
     setShowForm(false);
   }
 
+  function handleNuevaCitaEspecialidadChange(value: string) {
+    setNuevaCitaEspecialidadId(value);
+    // El médico (y el cupo elegido) quedan obsoletos si cambia la especialidad.
+    setValue('doctorId', '' as unknown as number);
+    setValue('slotId', '' as unknown as number);
+    setSelectedDoctorId(null);
+  }
+
+  const doctoresPorEspecialidad = nuevaCitaEspecialidadId
+    ? doctors.filter((d) => d.specialtyId === Number(nuevaCitaEspecialidadId))
+    : doctors;
   const disponibles = availableSlots.filter((s) => s.estado === 'DISPONIBLE');
 
   return (
@@ -89,19 +121,19 @@ export function AppointmentsPage() {
       </div>
 
       <div style={{ display: 'flex', gap: 12, marginBottom: '1rem', flexWrap: 'wrap', alignItems: 'center' }}>
-        <select value={filtroEstado} onChange={(e) => setFiltroEstado(e.target.value)} style={{ ...ui.input, marginBottom: 0, width: 200 }}>
+        <select value={filtroEstado} onChange={(e) => actualizarFiltro(setFiltroEstado)(e.target.value)} style={{ ...ui.input, marginBottom: 0, width: 200 }}>
           <option value="">Todos los estados</option>
           {Object.entries(ESTADO_LABEL).map(([k, v]) => (
             <option key={k} value={k}>{v}</option>
           ))}
         </select>
-        <select value={filtroEspecialidad} onChange={(e) => setFiltroEspecialidad(e.target.value)} style={{ ...ui.input, marginBottom: 0, width: 200 }}>
+        <select value={filtroEspecialidad} onChange={(e) => actualizarFiltro(setFiltroEspecialidad)(e.target.value)} style={{ ...ui.input, marginBottom: 0, width: 200 }}>
           <option value="">Todas las especialidades</option>
           {specialties.map((s) => (
             <option key={s.id} value={s.id}>{s.nombre}</option>
           ))}
         </select>
-        <select value={filtroDoctor} onChange={(e) => setFiltroDoctor(e.target.value)} style={{ ...ui.input, marginBottom: 0, width: 200 }}>
+        <select value={filtroDoctor} onChange={(e) => actualizarFiltro(setFiltroDoctor)(e.target.value)} style={{ ...ui.input, marginBottom: 0, width: 200 }}>
           <option value="">Todos los médicos</option>
           {doctors.map((d) => (
             <option key={d.id} value={d.id}>{d.nombres} {d.apellidos}</option>
@@ -112,7 +144,7 @@ export function AppointmentsPage() {
           <input
             type="date"
             value={filtroFechaDesde}
-            onChange={(e) => setFiltroFechaDesde(e.target.value)}
+            onChange={(e) => actualizarFiltro(setFiltroFechaDesde)(e.target.value)}
             style={{ ...ui.input, marginBottom: 0, width: 160 }}
           />
         </label>
@@ -121,7 +153,7 @@ export function AppointmentsPage() {
           <input
             type="date"
             value={filtroFechaHasta}
-            onChange={(e) => setFiltroFechaHasta(e.target.value)}
+            onChange={(e) => actualizarFiltro(setFiltroFechaHasta)(e.target.value)}
             style={{ ...ui.input, marginBottom: 0, width: 160 }}
           />
         </label>
@@ -134,6 +166,7 @@ export function AppointmentsPage() {
               setFiltroEspecialidad('');
               setFiltroFechaDesde('');
               setFiltroFechaHasta('');
+              setPage(1);
             }}
           >
             Limpiar filtros
@@ -182,14 +215,56 @@ export function AppointmentsPage() {
         </table>
       </div>
 
+      {total > 0 && (
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 12 }}>
+          <span style={{ color: 'var(--text-secondary)', fontSize: 13 }}>
+            {total} cita{total === 1 ? '' : 's'} — página {page} de {totalPages}
+          </span>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button
+              style={ui.secondaryButton}
+              disabled={page <= 1}
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+            >
+              ← Anterior
+            </button>
+            <button
+              style={ui.secondaryButton}
+              disabled={page >= totalPages}
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+            >
+              Siguiente →
+            </button>
+          </div>
+        </div>
+      )}
+
       {showForm && (
         <Modal title="Nueva cita" onClose={closeForm}>
-          <form onSubmit={handleSubmit((values) => createMutation.mutate({ ...values, patientId: Number(values.patientId), doctorId: Number(values.doctorId), slotId: Number(values.slotId) }))}>
+          <form onSubmit={handleSubmit((values) => createMutation.mutate({
+            ...values,
+            patientId: Number(values.patientId),
+            doctorId: Number(values.doctorId),
+            slotId: Number(values.slotId),
+            monto: values.pagado && values.monto ? Number(values.monto) : undefined,
+          }))}>
             <label>Paciente</label>
             <select {...register('patientId', { required: true })} style={ui.input} defaultValue="">
               <option value="" disabled>Seleccionar...</option>
               {patients.map((p) => (
                 <option key={p.id} value={p.id}>{p.nombres} {p.apellidos}</option>
+              ))}
+            </select>
+
+            <label>Especialidad</label>
+            <select
+              value={nuevaCitaEspecialidadId}
+              onChange={(e) => handleNuevaCitaEspecialidadChange(e.target.value)}
+              style={ui.input}
+            >
+              <option value="">Todas las especialidades</option>
+              {specialties.map((s) => (
+                <option key={s.id} value={s.id}>{s.nombre}</option>
               ))}
             </select>
 
@@ -199,8 +274,12 @@ export function AppointmentsPage() {
               style={ui.input}
               defaultValue=""
             >
-              <option value="" disabled>Seleccionar...</option>
-              {doctors.map((d) => (
+              <option value="" disabled>
+                {nuevaCitaEspecialidadId && doctoresPorEspecialidad.length === 0
+                  ? 'Sin médicos en esta especialidad'
+                  : 'Seleccionar...'}
+              </option>
+              {doctoresPorEspecialidad.map((d) => (
                 <option key={d.id} value={d.id}>{d.nombres} {d.apellidos} ({d.specialty?.nombre})</option>
               ))}
             </select>
@@ -217,6 +296,20 @@ export function AppointmentsPage() {
 
             <label>Motivo de consulta</label>
             <input {...register('motivoConsulta')} placeholder="Ej. Dolor de cabeza, control rutinario..." style={ui.input} />
+
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: watchedPagado ? 4 : 12 }}>
+              <input type="checkbox" {...register('pagado')} style={{ width: 'auto', marginBottom: 0 }} />
+              El paciente ya pagó la cita
+            </label>
+            {watchedPagado && (
+              <>
+                <label>Monto pagado (S/)</label>
+                <input type="number" step="0.1" min={0} placeholder="Ej. 80" {...register('monto')} style={ui.input} />
+                <small style={{ color: 'var(--text-muted)', display: 'block', marginBottom: 12 }}>
+                  Política: la primera vez que se reprograma o cancela esta cita, el pago queda a salvo; una segunda cancelación lo pierde.
+                </small>
+              </>
+            )}
 
             <div style={{ display: 'flex', gap: 8 }}>
               <button type="button" style={{ ...ui.secondaryButton, flex: 1 }} onClick={closeForm}>

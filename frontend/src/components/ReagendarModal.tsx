@@ -17,6 +17,7 @@ export function ReagendarModal({ appointment, onClose }: ReagendarModalProps) {
   const queryClient = useQueryClient();
   const [doctorId, setDoctorId] = useState(appointment.doctorId);
   const [slotId, setSlotId] = useState<number | null>(null);
+  const [motivo, setMotivo] = useState('');
 
   const { data: doctors = [] } = useQuery({ queryKey: ['doctors'], queryFn: fetchDoctors });
   const { data: slots = [] } = useQuery({
@@ -26,9 +27,13 @@ export function ReagendarModal({ appointment, onClose }: ReagendarModalProps) {
 
   const mismaEspecialidad = doctors.filter((d) => d.specialtyId === appointment.doctor.specialtyId);
   const disponibles = slots.filter((s) => s.estado === 'DISPONIBLE');
+  // Recuperación: el paciente ya faltó/canceló y está usando su plazo de 24h para
+  // reprogramar. Proactivo (Derivar): la cita todavía está vigente y se mueve por una
+  // razón operativa (ej. el médico no va a estar disponible).
+  const esRecuperacion = appointment.estado === 'CANCELADA' || appointment.estado === 'NO_ASISTIO';
 
   const mutation = useMutation({
-    mutationFn: () => rescheduleAppointment(appointment.id, slotId!),
+    mutationFn: () => rescheduleAppointment(appointment.id, slotId!, motivo || undefined),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['appointments'] });
       queryClient.invalidateQueries({ queryKey: ['available-slots'] });
@@ -38,9 +43,15 @@ export function ReagendarModal({ appointment, onClose }: ReagendarModalProps) {
 
   return (
     <Modal
-      title={`Derivar / reagendar — ${appointment.patient.nombres} ${appointment.patient.apellidos}`}
+      title={`${esRecuperacion ? 'Reprogramar' : 'Derivar / reagendar'} — ${appointment.patient.nombres} ${appointment.patient.apellidos}`}
       onClose={onClose}
     >
+      {esRecuperacion && (
+        <p style={{ color: 'var(--text-secondary)', fontSize: 13, marginBottom: 12 }}>
+          Esta cita quedó {appointment.estado === 'NO_ASISTIO' ? 'como no-asistida' : 'cancelada'}, pero el pago
+          sigue a salvo dentro del plazo de 24 horas: elegí el nuevo horario para reprogramarla.
+        </p>
+      )}
       <p style={{ color: 'var(--text-secondary)', fontSize: 13, marginBottom: 12 }}>
         Solo se muestran médicos de {appointment.doctor.specialty.nombre} (la misma especialidad de la cita
         original).
@@ -69,6 +80,19 @@ export function ReagendarModal({ appointment, onClose }: ReagendarModalProps) {
         ))}
       </select>
 
+      <label>Motivo de la reprogramación (opcional)</label>
+      <textarea
+        value={motivo}
+        onChange={(e) => setMotivo(e.target.value)}
+        placeholder="Ej. El médico no está disponible, el paciente pidió otro horario..."
+        style={{ ...ui.input, minHeight: 60 }}
+      />
+      <small style={{ color: 'var(--text-muted)', display: 'block', marginBottom: 12 }}>
+        {esRecuperacion
+          ? 'Se crea una cita nueva enlazada a la anterior; el cambio queda registrado con tu usuario y este motivo para auditoría.'
+          : 'La cita original queda cancelada y se crea una nueva; el cambio queda registrado con tu usuario y este motivo para auditoría.'}
+      </small>
+
       {mutation.isError && (
         <p style={{ color: 'var(--color-critical)' }}>No se pudo reagendar la cita. Verifica el cupo elegido.</p>
       )}
@@ -82,7 +106,7 @@ export function ReagendarModal({ appointment, onClose }: ReagendarModalProps) {
           onClick={() => mutation.mutate()}
           style={{ ...ui.primaryButton, flex: 1 }}
         >
-          Confirmar
+          Confirmar reprogramación
         </button>
       </div>
     </Modal>

@@ -12,7 +12,7 @@ import {
   Bar,
   Legend,
 } from 'recharts';
-import { getDashboard, getDoctorRanking, getScheduleOccupancy, getWaitTimeWeekly, type WaitTimeWeeklyPoint } from '../api/reports';
+import { getDashboard, getDoctorRanking, getRetencionIngresos, getScheduleOccupancy, getWaitTimeWeekly, type WaitTimeWeeklyPoint } from '../api/reports';
 import { downloadManagementReportPdf } from '../utils/pdfReports';
 import { colorForIndex } from '../utils/categoricalPalette';
 import * as ui from '../components/ui';
@@ -72,7 +72,7 @@ function ChartCard({ title, children }: { title: string; children: React.ReactNo
   );
 }
 
-export function DashboardPage() {
+export function ReportsPage() {
   const [period, setPeriod] = useState<'month' | 'quarter' | 'year'>('month');
 
   const dashboardQuery = useQuery({
@@ -82,6 +82,7 @@ export function DashboardPage() {
   const rankingQuery = useQuery({ queryKey: ['doctor-ranking'], queryFn: getDoctorRanking });
   const occupancyQuery = useQuery({ queryKey: ['schedule-occupancy'], queryFn: getScheduleOccupancy });
   const waitTimeWeeklyQuery = useQuery({ queryKey: ['wait-time-weekly'], queryFn: getWaitTimeWeekly });
+  const retencionQuery = useQuery({ queryKey: ['retencion-ingresos'], queryFn: getRetencionIngresos });
 
   const data = dashboardQuery.data ?? [];
   const totalCompletadas = data.reduce((sum, d) => sum + d.totalCitasCompletadas, 0);
@@ -113,7 +114,7 @@ export function DashboardPage() {
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h1>Dashboard</h1>
+        <h1>Reportes</h1>
         <div style={{ display: 'flex', gap: 10 }}>
           <select value={period} onChange={(e) => setPeriod(e.target.value as typeof period)} style={{ ...ui.input, width: 160, marginBottom: 0 }}>
             <option value="month">Mensual</option>
@@ -142,7 +143,18 @@ export function DashboardPage() {
           value={promedioEspera}
           icon={<><circle cx="12" cy="12" r="8.5" /><path d="M12 7.5V12l3 2" /></>}
         />
+        <KpiCard
+          label="Ingresos retenidos por cancelación (S/)"
+          value={(retencionQuery.data?.montoRetenido ?? 0).toFixed(2)}
+          icon={<><path d="M12 3v18M17 7.5c0-1.9-2-3-5-3s-5 1.4-5 3 2 3 5 3 5 1.1 5 3-2 3-5 3-5-1.1-5-3" /></>}
+        />
       </div>
+      {retencionQuery.data && (retencionQuery.data.citasConDineroPerdido > 0 || retencionQuery.data.citasReembolsadas > 0) && (
+        <p style={{ color: 'var(--text-secondary)', fontSize: 12.5, marginTop: -8, marginBottom: 16 }}>
+          Política de cancelación (últimos 12 meses): {retencionQuery.data.citasConDineroPerdido} cita(s) perdieron el pago (S/ {retencionQuery.data.montoRetenido.toFixed(2)}) ·{' '}
+          {retencionQuery.data.citasReembolsadas} cita(s) fueron reembolsadas (S/ {retencionQuery.data.montoReembolsado.toFixed(2)})
+        </p>
+      )}
 
       <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap', marginBottom: '1.5rem' }}>
         <ChartCard title="Tiempo de espera semanal por especialidad">

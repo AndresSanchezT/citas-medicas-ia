@@ -45,3 +45,15 @@ export async function getWaitTimeWeekly(): Promise<WaitTimeWeeklyPoint[]> {
   const { data } = await apiClient.get<WaitTimeWeeklyPoint[]>('/reports/wait-time-weekly');
   return data;
 }
+
+export interface RetencionIngresos {
+  montoRetenido: number;
+  montoReembolsado: number;
+  citasConDineroPerdido: number;
+  citasReembolsadas: number;
+}
+
+export async function getRetencionIngresos(): Promise<RetencionIngresos> {
+  const { data } = await apiClient.get<RetencionIngresos>('/reports/retencion-ingresos');
+  return data;
+}
