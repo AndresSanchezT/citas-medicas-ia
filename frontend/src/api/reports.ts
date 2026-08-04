@@ -10,7 +10,19 @@ export interface DashboardPoint {
 
 export interface OccupancyPoint {
   franjaHoraria: string;
+  especialidad: string;
   totalPacientes: number;
+}
+
+export interface OccupancyWeeklyPoint {
+  semana: string;
+  especialidad: string;
+  totalPacientes: number;
+}
+
+export interface ScheduleOccupancyReport {
+  porHora: OccupancyPoint[];
+  porSemana: OccupancyWeeklyPoint[];
 }
 
 export interface DoctorRankingItem {
@@ -31,8 +43,8 @@ export async function getDashboard(period: 'month' | 'quarter' | 'year'): Promis
   return data;
 }
 
-export async function getScheduleOccupancy(): Promise<OccupancyPoint[]> {
-  const { data } = await apiClient.get<OccupancyPoint[]>('/reports/schedule-occupancy');
+export async function getScheduleOccupancy(): Promise<ScheduleOccupancyReport> {
+  const { data } = await apiClient.get<ScheduleOccupancyReport>('/reports/schedule-occupancy');
   return data;
 }
 
@@ -55,5 +67,27 @@ export interface RetencionIngresos {
 
 export async function getRetencionIngresos(): Promise<RetencionIngresos> {
   const { data } = await apiClient.get<RetencionIngresos>('/reports/retencion-ingresos');
+  return data;
+}
+
+export interface CostoPorEspecialidad {
+  especialidad: string;
+  totalCitas: number;
+  ingresoTotal: number;
+}
+
+export async function getCostosPorEspecialidad(): Promise<CostoPorEspecialidad[]> {
+  const { data } = await apiClient.get<CostoPorEspecialidad[]>('/reports/costos-por-especialidad');
+  return data;
+}
+
+export interface CitaConcurrida {
+  dia: string;
+  franjaHoraria: string;
+  totalCitas: number;
+}
+
+export async function getCitasMasConcurridas(): Promise<CitaConcurrida[]> {
+  const { data } = await apiClient.get<CitaConcurrida[]>('/reports/citas-mas-concurridas');
   return data;
 }

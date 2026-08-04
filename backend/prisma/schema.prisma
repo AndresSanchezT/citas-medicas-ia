@@ -24,6 +24,12 @@ enum AppointmentStatus {
   COMPLETADA
   CANCELADA
   NO_ASISTIO
+  REPROGRAMADA
+}
+
+enum Sexo {
+  MASCULINO
+  FEMENINO
 }
 
 enum SlotStatus {
@@ -87,8 +93,9 @@ enum EstadoReembolso {
 }
 
 model Specialty {
-  id      Int      @id @default(autoincrement())
-  nombre  String   @unique @db.VarChar(100)
+  id             Int      @id @default(autoincrement())
+  nombre         String   @unique @db.VarChar(100)
+  precioConsulta Float?   @map("precio_consulta")
   doctors Doctor[]
   waitlistEntries WaitlistEntry[]
 
@@ -139,6 +146,7 @@ model Patient {
   apellidos          String   @db.VarChar(100)
   documentoIdentidad String   @unique @map("documento_identidad") @db.VarChar(20)
   fechaNacimiento    DateTime? @map("fecha_nacimiento") @db.Date
+  sexo               Sexo?
   telefono           String?  @db.VarChar(20)
   email              String?  @db.VarChar(150)
   direccion          String?  @db.VarChar(255)
@@ -247,6 +255,11 @@ model Triage {
   prioridad              TriagePrioridad?
   notas                  String?          @db.Text
   registradoEn           DateTime         @default(now()) @map("registrado_en")
+  // "Iniciar triaje" queda el momento en que el personal empieza a tomar los signos
+  // vitales; al Guardar se cierra con la hora del servidor, dando la duración real
+  // del triaje sin depender del reloj del navegador.
+  inicioTriajeEn         DateTime?        @map("inicio_triaje_en")
+  finTriajeEn            DateTime?        @map("fin_triaje_en")
 
   appointment Appointment @relation(fields: [appointmentId], references: [id])
 

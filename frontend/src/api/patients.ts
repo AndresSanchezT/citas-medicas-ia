@@ -1,11 +1,19 @@
 import { apiClient } from './client';
 
+export type Sexo = 'MASCULINO' | 'FEMENINO';
+
+export const SEXO_LABEL: Record<Sexo, string> = {
+  MASCULINO: 'Masculino',
+  FEMENINO: 'Femenino',
+};
+
 export interface Patient {
   id: number;
   nombres: string;
   apellidos: string;
   documentoIdentidad: string;
   fechaNacimiento: string | null;
+  sexo: Sexo | null;
   telefono: string | null;
   email: string | null;
   direccion: string | null;
@@ -16,6 +24,7 @@ export interface PatientInput {
   nombres: string;
   apellidos: string;
   documentoIdentidad: string;
+  sexo?: Sexo;
   telefono?: string;
   email?: string;
   direccion?: string;

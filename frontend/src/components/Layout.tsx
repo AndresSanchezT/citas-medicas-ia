@@ -41,6 +41,9 @@ const icons = {
   alertas: (
     <Icon><path d="M12 4a4.5 4.5 0 0 0-4.5 4.5c0 5-2 6-2 6.5h13c0-.5-2-1.5-2-6.5A4.5 4.5 0 0 0 12 4Z" /><path d="M10.3 18.5a1.8 1.8 0 0 0 3.4 0" /></Icon>
   ),
+  especialidades: (
+    <Icon><path d="M12 3 4 7v6c0 4.5 3.5 7 8 8 4.5-1 8-3.5 8-8V7l-8-4Z" /><path d="M9.5 12.5 11 14l3.5-3.5" /></Icon>
+  ),
 };
 
 const menuItems: MenuItem[] = [
@@ -48,6 +51,7 @@ const menuItems: MenuItem[] = [
   { to: '/mi-agenda', label: 'Mi agenda', roles: ['MEDICO'], icon: icons.agenda },
   { to: '/pacientes', label: 'Pacientes', roles: ['ADMIN', 'RECEPCIONISTA', 'MEDICO'], icon: icons.pacientes },
   { to: '/medicos', label: 'Médicos', roles: ['ADMIN', 'RECEPCIONISTA', 'MEDICO'], icon: icons.medicos },
+  { to: '/especialidades', label: 'Especialidades', roles: ['ADMIN'], icon: icons.especialidades },
   { to: '/citas', label: 'Citas', roles: ['ADMIN', 'RECEPCIONISTA'], icon: icons.citas },
   { to: '/lista-espera', label: 'Lista de espera', roles: ['ADMIN', 'RECEPCIONISTA'], icon: icons.espera },
   { to: '/alertas', label: 'Alertas', roles: ['ADMIN', 'RECEPCIONISTA', 'MEDICO'], icon: icons.alertas },

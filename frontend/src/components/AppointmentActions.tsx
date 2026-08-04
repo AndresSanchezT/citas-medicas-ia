@@ -1,5 +1,7 @@
+import { useState } from 'react';
 import type { Appointment } from '../api/appointments';
 import type { Usuario } from '../api/auth';
+import { TimePickerModal } from './TimePickerModal';
 import * as ui from './ui';
 
 export const ESTADO_LABEL: Record<Appointment['estado'], string> = {
@@ -9,6 +11,7 @@ export const ESTADO_LABEL: Record<Appointment['estado'], string> = {
   COMPLETADA: 'Completada',
   CANCELADA: 'Cancelada',
   NO_ASISTIO: 'No asistió',
+  REPROGRAMADA: 'Reprogramada',
 };
 
 export const PRIORIDAD_LABEL: Record<string, string> = {
@@ -55,8 +58,8 @@ interface AppointmentActionsProps {
   rol: Usuario['rol'];
   busy: boolean;
   onCheckIn: (id: number) => void;
-  onStart: (id: number) => void;
-  onComplete: (id: number) => void;
+  onStart: (id: number, hora?: string) => void;
+  onComplete: (id: number, hora?: string) => void;
   onCancel: (id: number) => void;
   onNoShow: (id: number) => void;
   onTriage?: (appointment: Appointment) => void;
@@ -78,6 +81,10 @@ export function AppointmentActions({
   const puedeRecepcionar = PUEDE_RECEPCIONAR.includes(rol);
   const puedeAtender = PUEDE_ATENDER.includes(rol);
   const puedeCancelarONoShow = PUEDE_CANCELAR_O_NOSHOW.includes(rol);
+  // El médico asigna la hora real de inicio/fin de la consulta en vez de que el sistema
+  // le imponga "ahora mismo" (ver TimePickerModal); acá se guarda cuál de las dos
+  // acciones está pendiente de que elija la hora.
+  const [horaPendiente, setHoraPendiente] = useState<'start' | 'complete' | null>(null);
 
   const btn = (label: string, onClick: () => void, color?: string) => (
     <button
@@ -108,15 +115,37 @@ export function AppointmentActions({
         {puedeRecepcionar && onTriage &&
           btn(appointment.triage ? 'Editar triaje' : 'Triaje', () => onTriage(appointment), 'var(--color-violet)')}
         {puedeRecepcionar && onReschedule && btn('Derivar', () => onReschedule(appointment), 'var(--color-primary)')}
-        {puedeAtender && btn('Iniciar consulta', () => onStart(appointment.id))}
+        {puedeAtender && btn('Iniciar consulta', () => setHoraPendiente('start'))}
         {puedeCancelarONoShow && btn('No-asistió', () => onNoShow(appointment.id), 'var(--color-critical)')}
         {puedeCancelarONoShow && btn('Cancelar', () => { if (confirmarCancelacion(appointment)) onCancel(appointment.id); }, 'var(--text-muted)')}
+        {horaPendiente === 'start' && (
+          <TimePickerModal
+            title="Iniciar consulta"
+            descripcion="Confirma la hora real en que empieza a atender al paciente."
+            busy={busy}
+            onClose={() => setHoraPendiente(null)}
+            onConfirm={(iso) => { onStart(appointment.id, iso); setHoraPendiente(null); }}
+          />
+        )}
       </>
     );
   }
   if (appointment.estado === 'EN_CURSO') {
     if (!puedeAtender) return <span style={{ color: 'var(--text-muted)' }}>En curso</span>;
-    return btn('Completar', () => onComplete(appointment.id), 'var(--color-good)');
+    return (
+      <>
+        {btn('Completar', () => setHoraPendiente('complete'), 'var(--color-good)')}
+        {horaPendiente === 'complete' && (
+          <TimePickerModal
+            title="Completar consulta"
+            descripcion="Confirma la hora real en que terminó de atender al paciente."
+            busy={busy}
+            onClose={() => setHoraPendiente(null)}
+            onConfirm={(iso) => { onComplete(appointment.id, iso); setHoraPendiente(null); }}
+          />
+        )}
+      </>
+    );
   }
   if ((appointment.estado === 'CANCELADA' || appointment.estado === 'NO_ASISTIO') && puedeRecuperar(appointment)) {
     if (!puedeRecepcionar || !onReschedule) return <span style={{ color: 'var(--text-muted)' }}>—</span>;

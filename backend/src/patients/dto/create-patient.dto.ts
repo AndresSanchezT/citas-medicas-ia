@@ -1,4 +1,5 @@
-import { IsDateString, IsEmail, IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsDateString, IsEmail, IsEnum, IsOptional, IsString, MaxLength } from 'class-validator';
+import { Sexo } from '../../../generated/prisma/enums';
 
 export class CreatePatientDto {
   @IsString()
@@ -16,6 +17,10 @@ export class CreatePatientDto {
   @IsOptional()
   @IsDateString()
   fechaNacimiento?: string;
+
+  @IsOptional()
+  @IsEnum(Sexo)
+  sexo?: Sexo;
 
   @IsOptional()
   @IsString()

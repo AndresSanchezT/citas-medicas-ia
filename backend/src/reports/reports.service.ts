@@ -10,6 +10,13 @@ function localDateAsUtcMidnight(baseDate: Date, dayOffset: number): Date {
   return new Date(Date.UTC(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate() + dayOffset));
 }
 
+function franjaHorariaFrom(horaInicio: string): string {
+  const hour = Number(horaInicio.split(':')[0]);
+  return `${hour.toString().padStart(2, '0')}:00`;
+}
+
+const DIAS_SEMANA = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+
 @Injectable()
 export class ReportsService {
   private readonly logger = new Logger(ReportsService.name);
@@ -125,23 +132,50 @@ export class ReportsService {
       }));
   }
 
-  // ---------- Horarios con más/menos pacientes ----------
+  // ---------- Horarios con más/menos pacientes, por especialidad ----------
+  // Se calculan ambas vistas (por franja horaria y por semana) en una sola pasada sobre
+  // las citas completadas, para que el frontend pueda alternar entre ellas sin pedir de
+  // nuevo al backend.
 
   async getScheduleOccupancyReport() {
     const citas = await this.prisma.appointment.findMany({
       where: { estado: 'COMPLETADA' },
-      select: { horaInicio: true },
+      select: { horaInicio: true, fecha: true, doctor: { select: { specialty: { select: { nombre: true } } } } },
     });
 
-    const porHora = new Map<number, number>();
+    const porHoraMap = new Map<string, Map<string, number>>();
+    const porSemanaMap = new Map<string, Map<string, number>>();
+
     for (const cita of citas) {
-      const hora = Number(cita.horaInicio.split(':')[0]);
-      porHora.set(hora, (porHora.get(hora) ?? 0) + 1);
+      const especialidad = cita.doctor.specialty.nombre;
+      const hora = franjaHorariaFrom(cita.horaInicio);
+      if (!porHoraMap.has(hora)) porHoraMap.set(hora, new Map());
+      const bucketHora = porHoraMap.get(hora)!;
+      bucketHora.set(especialidad, (bucketHora.get(especialidad) ?? 0) + 1);
+
+      const semana = this.mondayOfWeek(cita.fecha).toISOString().split('T')[0];
+      if (!porSemanaMap.has(semana)) porSemanaMap.set(semana, new Map());
+      const bucketSemana = porSemanaMap.get(semana)!;
+      bucketSemana.set(especialidad, (bucketSemana.get(especialidad) ?? 0) + 1);
     }
 
-    return Array.from(porHora.entries())
-      .map(([hora, total]) => ({ franjaHoraria: `${hora.toString().padStart(2, '0')}:00`, totalPacientes: total }))
-      .sort((a, b) => a.franjaHoraria.localeCompare(b.franjaHoraria));
+    const porHora: { franjaHoraria: string; especialidad: string; totalPacientes: number }[] = [];
+    for (const [franjaHoraria, porEspecialidad] of porHoraMap) {
+      for (const [especialidad, totalPacientes] of porEspecialidad) {
+        porHora.push({ franjaHoraria, especialidad, totalPacientes });
+      }
+    }
+    porHora.sort((a, b) => a.franjaHoraria.localeCompare(b.franjaHoraria));
+
+    const porSemana: { semana: string; especialidad: string; totalPacientes: number }[] = [];
+    for (const [semana, porEspecialidad] of porSemanaMap) {
+      for (const [especialidad, totalPacientes] of porEspecialidad) {
+        porSemana.push({ semana, especialidad, totalPacientes });
+      }
+    }
+    porSemana.sort((a, b) => a.semana.localeCompare(b.semana));
+
+    return { porHora, porSemana };
   }
 
   // ---------- Médico con más/menos pacientes ----------
@@ -245,5 +279,64 @@ export class ReportsService {
     }
 
     return { montoRetenido, montoReembolsado, citasConDineroPerdido, citasReembolsadas };
+  }
+
+  // ---------- Reporte de costos: ingresos por especialidad ----------
+
+  async getCostosPorEspecialidad(from?: string, to?: string) {
+    const desde = from ? new Date(from) : new Date(new Date().setMonth(new Date().getMonth() - 12));
+    const hasta = to ? new Date(to) : new Date();
+
+    const citas = await this.prisma.appointment.findMany({
+      where: { pagado: true, fecha: { gte: desde, lte: hasta } },
+      select: { monto: true, doctor: { select: { specialty: { select: { nombre: true } } } } },
+    });
+
+    const porEspecialidad = new Map<string, { totalCitas: number; ingresoTotal: number }>();
+    for (const cita of citas) {
+      const especialidad = cita.doctor.specialty.nombre;
+      if (!porEspecialidad.has(especialidad)) {
+        porEspecialidad.set(especialidad, { totalCitas: 0, ingresoTotal: 0 });
+      }
+      const bucket = porEspecialidad.get(especialidad)!;
+      bucket.totalCitas += 1;
+      bucket.ingresoTotal += cita.monto ?? 0;
+    }
+
+    return Array.from(porEspecialidad.entries())
+      .map(([especialidad, v]) => ({
+        especialidad,
+        totalCitas: v.totalCitas,
+        ingresoTotal: Math.round(v.ingresoTotal * 100) / 100,
+      }))
+      .sort((a, b) => b.ingresoTotal - a.ingresoTotal);
+  }
+
+  // ---------- Citas más concurridas: combinación día de semana + franja horaria ----------
+
+  async getCitasMasConcurridas(from?: string, to?: string) {
+    const desde = from ? new Date(from) : new Date(new Date().setMonth(new Date().getMonth() - 12));
+    const hasta = to ? new Date(to) : new Date();
+
+    const citas = await this.prisma.appointment.findMany({
+      where: { estado: 'COMPLETADA', fecha: { gte: desde, lte: hasta } },
+      select: { fecha: true, horaInicio: true },
+    });
+
+    const conteo = new Map<string, number>();
+    for (const cita of citas) {
+      const dia = DIAS_SEMANA[cita.fecha.getUTCDay()];
+      const franja = franjaHorariaFrom(cita.horaInicio);
+      const key = `${dia}|${franja}`;
+      conteo.set(key, (conteo.get(key) ?? 0) + 1);
+    }
+
+    return Array.from(conteo.entries())
+      .map(([key, totalCitas]) => {
+        const [dia, franjaHoraria] = key.split('|');
+        return { dia, franjaHoraria, totalCitas };
+      })
+      .sort((a, b) => b.totalCitas - a.totalCitas)
+      .slice(0, 15);
   }
 }

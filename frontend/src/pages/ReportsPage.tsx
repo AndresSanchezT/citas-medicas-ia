@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import html2canvas from 'html2canvas';
 import {
   ResponsiveContainer,
   LineChart,
@@ -12,8 +13,19 @@ import {
   Bar,
   Legend,
 } from 'recharts';
-import { getDashboard, getDoctorRanking, getRetencionIngresos, getScheduleOccupancy, getWaitTimeWeekly, type WaitTimeWeeklyPoint } from '../api/reports';
-import { downloadManagementReportPdf } from '../utils/pdfReports';
+import {
+  getCitasMasConcurridas,
+  getCostosPorEspecialidad,
+  getDashboard,
+  getDoctorRanking,
+  getRetencionIngresos,
+  getScheduleOccupancy,
+  getWaitTimeWeekly,
+  type OccupancyPoint,
+  type OccupancyWeeklyPoint,
+  type WaitTimeWeeklyPoint,
+} from '../api/reports';
+import { downloadManagementReportPdf, type ChartImage } from '../utils/pdfReports';
 import { colorForIndex } from '../utils/categoricalPalette';
 import * as ui from '../components/ui';
 
@@ -26,16 +38,22 @@ function formatSemana(iso: string): string {
   return SEMANA_FORMATTER.format(new Date(`${iso}T00:00:00Z`));
 }
 
-// El backend devuelve formato largo (una fila por semana+especialidad); Recharts necesita
-// una fila por semana con una columna por especialidad para dibujar una línea por cada una.
-function pivotWaitTimeWeekly(points: WaitTimeWeeklyPoint[]) {
+// El backend devuelve formato largo (una fila por clave+especialidad); Recharts necesita
+// una fila por clave (semana o franja horaria) con una columna por especialidad, para
+// dibujar una serie por cada una.
+function pivotPorEspecialidad<T extends { especialidad: string; totalPacientes?: number; tiempoEsperaPromedioMinutos?: number }>(
+  points: T[],
+  keyField: 'semana' | 'franjaHoraria',
+  valueField: 'totalPacientes' | 'tiempoEsperaPromedioMinutos',
+) {
   const especialidades = Array.from(new Set(points.map((p) => p.especialidad))).sort();
-  const porSemana = new Map<string, Record<string, number | string>>();
+  const porKey = new Map<string, Record<string, number | string>>();
   for (const p of points) {
-    if (!porSemana.has(p.semana)) porSemana.set(p.semana, { semana: p.semana });
-    porSemana.get(p.semana)![p.especialidad] = p.tiempoEsperaPromedioMinutos;
+    const key = (p as unknown as Record<string, string>)[keyField];
+    if (!porKey.has(key)) porKey.set(key, { [keyField]: key });
+    porKey.get(key)![p.especialidad] = (p as unknown as Record<string, number>)[valueField];
   }
-  const rows = Array.from(porSemana.values()).sort((a, b) => String(a.semana).localeCompare(String(b.semana)));
+  const rows = Array.from(porKey.values()).sort((a, b) => String(a[keyField]).localeCompare(String(b[keyField])));
   return { rows, especialidades };
 }
 
@@ -63,17 +81,46 @@ function KpiCard({ label, value, icon }: { label: string; value: string | number
   );
 }
 
-function ChartCard({ title, children }: { title: string; children: React.ReactNode }) {
+function ChartCard({
+  title,
+  children,
+  captureRef,
+  headerExtra,
+}: {
+  title: string;
+  children: React.ReactNode;
+  captureRef?: React.RefObject<HTMLDivElement | null>;
+  headerExtra?: React.ReactNode;
+}) {
   return (
     <div style={{ ...ui.card, padding: '1.1rem 1.25rem', flex: '1 1 400px' }}>
-      <h3>{title}</h3>
-      {children}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <h3>{title}</h3>
+        {headerExtra}
+      </div>
+      <div ref={captureRef}>{children}</div>
     </div>
   );
 }
 
+// Captura un ChartCard como imagen PNG (usado al armar el PDF) para que el reporte
+// gerencial muestre el gráfico tal cual se ve en pantalla, no solo la tabla de datos.
+async function capturarGrafico(ref: React.RefObject<HTMLDivElement | null>): Promise<ChartImage | undefined> {
+  if (!ref.current) return undefined;
+  const canvas = await html2canvas(ref.current, { backgroundColor: '#ffffff', scale: 2 });
+  return { dataUrl: canvas.toDataURL('image/png'), width: canvas.width, height: canvas.height };
+}
+
 export function ReportsPage() {
   const [period, setPeriod] = useState<'month' | 'quarter' | 'year'>('month');
+  const [vistaOcupacion, setVistaOcupacion] = useState<'hora' | 'semana'>('hora');
+  const [generandoPdf, setGenerandoPdf] = useState(false);
+
+  const dashboardRef = useRef<HTMLDivElement>(null);
+  const doctorRankingRef = useRef<HTMLDivElement>(null);
+  const occupancyRef = useRef<HTMLDivElement>(null);
+  const waitTimeRef = useRef<HTMLDivElement>(null);
+  const costosRef = useRef<HTMLDivElement>(null);
 
   const dashboardQuery = useQuery({
     queryKey: ['dashboard', period],
@@ -83,6 +130,8 @@ export function ReportsPage() {
   const occupancyQuery = useQuery({ queryKey: ['schedule-occupancy'], queryFn: getScheduleOccupancy });
   const waitTimeWeeklyQuery = useQuery({ queryKey: ['wait-time-weekly'], queryFn: getWaitTimeWeekly });
   const retencionQuery = useQuery({ queryKey: ['retencion-ingresos'], queryFn: getRetencionIngresos });
+  const costosQuery = useQuery({ queryKey: ['costos-por-especialidad'], queryFn: getCostosPorEspecialidad });
+  const concurridasQuery = useQuery({ queryKey: ['citas-mas-concurridas'], queryFn: getCitasMasConcurridas });
 
   const data = dashboardQuery.data ?? [];
   const totalCompletadas = data.reduce((sum, d) => sum + d.totalCitasCompletadas, 0);
@@ -95,20 +144,54 @@ export function ReportsPage() {
       : 0;
 
   const isReportLoading =
-    dashboardQuery.isLoading || rankingQuery.isLoading || occupancyQuery.isLoading || waitTimeWeeklyQuery.isLoading;
+    dashboardQuery.isLoading || rankingQuery.isLoading || occupancyQuery.isLoading || waitTimeWeeklyQuery.isLoading ||
+    costosQuery.isLoading || concurridasQuery.isLoading;
 
-  const { rows: waitTimeWeeklyRows, especialidades: waitTimeEspecialidades } = pivotWaitTimeWeekly(
+  const { rows: waitTimeWeeklyRows, especialidades: waitTimeEspecialidades } = pivotPorEspecialidad<WaitTimeWeeklyPoint>(
     waitTimeWeeklyQuery.data ?? [],
+    'semana',
+    'tiempoEsperaPromedioMinutos',
+  );
+  const { rows: occupancyHoraRows, especialidades: occupancyEspecialidades } = pivotPorEspecialidad<OccupancyPoint>(
+    occupancyQuery.data?.porHora ?? [],
+    'franjaHoraria',
+    'totalPacientes',
+  );
+  const { rows: occupancySemanaRows } = pivotPorEspecialidad<OccupancyWeeklyPoint>(
+    occupancyQuery.data?.porSemana ?? [],
+    'semana',
+    'totalPacientes',
   );
 
-  function handleDownloadPdf() {
-    downloadManagementReportPdf({
-      period,
-      dashboard: data,
-      ranking: rankingQuery.data ?? [],
-      occupancy: occupancyQuery.data ?? [],
-      waitTimeWeekly: waitTimeWeeklyQuery.data ?? [],
-    });
+  async function handleDownloadPdf() {
+    setGenerandoPdf(true);
+    try {
+      const [dashboardImg, doctorRankingImg, occupancyImg, waitTimeImg, costosImg] = await Promise.all([
+        capturarGrafico(dashboardRef),
+        capturarGrafico(doctorRankingRef),
+        capturarGrafico(occupancyRef),
+        capturarGrafico(waitTimeRef),
+        capturarGrafico(costosRef),
+      ]);
+      downloadManagementReportPdf({
+        period,
+        dashboard: data,
+        ranking: rankingQuery.data ?? [],
+        occupancy: occupancyQuery.data?.porHora ?? [],
+        waitTimeWeekly: waitTimeWeeklyQuery.data ?? [],
+        costos: costosQuery.data ?? [],
+        concurridas: concurridasQuery.data ?? [],
+        charts: {
+          dashboard: dashboardImg,
+          doctorRanking: doctorRankingImg,
+          occupancy: occupancyImg,
+          waitTimeWeekly: waitTimeImg,
+          costos: costosImg,
+        },
+      });
+    } finally {
+      setGenerandoPdf(false);
+    }
   }
 
   return (
@@ -121,8 +204,8 @@ export function ReportsPage() {
             <option value="quarter">Trimestral</option>
             <option value="year">Anual</option>
           </select>
-          <button style={ui.primaryButton} disabled={isReportLoading} onClick={handleDownloadPdf}>
-            Descargar PDF
+          <button style={ui.primaryButton} disabled={isReportLoading || generandoPdf} onClick={handleDownloadPdf}>
+            {generandoPdf ? 'Generando PDF...' : 'Descargar PDF'}
           </button>
         </div>
       </div>
@@ -157,7 +240,7 @@ export function ReportsPage() {
       )}
 
       <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap', marginBottom: '1.5rem' }}>
-        <ChartCard title="Tiempo de espera semanal por especialidad">
+        <ChartCard title="Tiempo de espera semanal por especialidad" captureRef={waitTimeRef}>
           {waitTimeWeeklyQuery.isLoading ? (
             <p>Cargando...</p>
           ) : waitTimeWeeklyRows.length === 0 ? (
@@ -189,10 +272,73 @@ export function ReportsPage() {
             </ResponsiveContainer>
           )}
         </ChartCard>
+
+        <ChartCard
+          title="Ocupación por franja horaria y especialidad"
+          captureRef={occupancyRef}
+          headerExtra={
+            <div style={{ display: 'flex', gap: 4 }}>
+              {(['hora', 'semana'] as const).map((v) => (
+                <button
+                  key={v}
+                  onClick={() => setVistaOcupacion(v)}
+                  style={{
+                    ...ui.secondaryButton,
+                    marginRight: 0,
+                    padding: '0.3rem 0.7rem',
+                    fontSize: 12,
+                    ...(vistaOcupacion === v ? { background: 'var(--color-primary)', color: '#fff', borderColor: 'var(--color-primary)' } : {}),
+                  }}
+                >
+                  {v === 'hora' ? 'Por hora' : 'Por semana'}
+                </button>
+              ))}
+            </div>
+          }
+        >
+          {occupancyQuery.isLoading ? (
+            <p>Cargando...</p>
+          ) : vistaOcupacion === 'hora' ? (
+            occupancyHoraRows.length === 0 ? (
+              <p>Aún no hay citas completadas para graficar.</p>
+            ) : (
+              <ResponsiveContainer width="100%" height={320}>
+                <BarChart data={occupancyHoraRows}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                  <XAxis dataKey="franjaHoraria" stroke="var(--text-muted)" tick={{ fontSize: 12 }} />
+                  <YAxis stroke="var(--text-muted)" tick={{ fontSize: 12 }} />
+                  <Tooltip contentStyle={{ borderRadius: 8, border: '1px solid var(--border)', fontSize: 13 }} />
+                  <Legend wrapperStyle={{ fontSize: 13 }} />
+                  {occupancyEspecialidades.map((especialidad, i) => (
+                    <Bar key={especialidad} dataKey={especialidad} name={especialidad} fill={colorForIndex(i)} radius={[3, 3, 0, 0]} />
+                  ))}
+                </BarChart>
+              </ResponsiveContainer>
+            )
+          ) : occupancySemanaRows.length === 0 ? (
+            <p>Aún no hay suficiente historial semanal para graficar.</p>
+          ) : (
+            <ResponsiveContainer width="100%" height={320}>
+              <LineChart data={occupancySemanaRows}>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                <XAxis dataKey="semana" tickFormatter={formatSemana} stroke="var(--text-muted)" tick={{ fontSize: 12 }} />
+                <YAxis stroke="var(--text-muted)" tick={{ fontSize: 12 }} />
+                <Tooltip
+                  contentStyle={{ borderRadius: 8, border: '1px solid var(--border)', fontSize: 13 }}
+                  labelFormatter={(value) => `Semana del ${formatSemana(String(value))}`}
+                />
+                <Legend wrapperStyle={{ fontSize: 13 }} />
+                {occupancyEspecialidades.map((especialidad, i) => (
+                  <Line key={especialidad} type="monotone" dataKey={especialidad} name={especialidad} stroke={colorForIndex(i)} strokeWidth={2} dot={{ r: 3 }} connectNulls />
+                ))}
+              </LineChart>
+            </ResponsiveContainer>
+          )}
+        </ChartCard>
       </div>
 
-      <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap' }}>
-        <ChartCard title="Tendencia de citas completadas / inasistencias">
+      <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap', marginBottom: '1.5rem' }}>
+        <ChartCard title="Tendencia de citas completadas / inasistencias" captureRef={dashboardRef}>
           {dashboardQuery.isLoading ? (
             <p>Cargando...</p>
           ) : (
@@ -210,7 +356,7 @@ export function ReportsPage() {
           )}
         </ChartCard>
 
-        <ChartCard title="Citas por médico">
+        <ChartCard title="Citas por médico" captureRef={doctorRankingRef}>
           {rankingQuery.isLoading ? (
             <p>Cargando...</p>
           ) : (
@@ -225,20 +371,53 @@ export function ReportsPage() {
             </ResponsiveContainer>
           )}
         </ChartCard>
+      </div>
 
-        <ChartCard title="Horarios con más pacientes">
-          {occupancyQuery.isLoading ? (
+      <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap' }}>
+        <ChartCard title="Reporte de costos: ingresos por especialidad (S/)" captureRef={costosRef}>
+          {costosQuery.isLoading ? (
             <p>Cargando...</p>
+          ) : (costosQuery.data ?? []).length === 0 ? (
+            <p>Aún no hay citas pagadas registradas.</p>
           ) : (
             <ResponsiveContainer width="100%" height={280}>
-              <BarChart data={occupancyQuery.data ?? []}>
+              <BarChart data={costosQuery.data}>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                <XAxis dataKey="franjaHoraria" stroke="var(--text-muted)" tick={{ fontSize: 12 }} />
+                <XAxis dataKey="especialidad" stroke="var(--text-muted)" tick={{ fontSize: 11 }} />
                 <YAxis stroke="var(--text-muted)" tick={{ fontSize: 12 }} />
                 <Tooltip contentStyle={{ borderRadius: 8, border: '1px solid var(--border)', fontSize: 13 }} />
-                <Bar dataKey="totalPacientes" name="Pacientes" fill={PALETTE.primary} radius={[4, 4, 0, 0]} />
+                <Bar dataKey="ingresoTotal" name="Ingreso total (S/)" fill={PALETTE.good} radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
+          )}
+        </ChartCard>
+
+        <ChartCard title="Citas más concurridas (día y franja horaria)">
+          {concurridasQuery.isLoading ? (
+            <p>Cargando...</p>
+          ) : (concurridasQuery.data ?? []).length === 0 ? (
+            <p>Aún no hay suficientes citas completadas.</p>
+          ) : (
+            <div style={{ maxHeight: 280, overflowY: 'auto' }}>
+              <table style={ui.table}>
+                <thead>
+                  <tr>
+                    <th style={ui.th}>Día</th>
+                    <th style={ui.th}>Franja</th>
+                    <th style={ui.th}>Citas</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(concurridasQuery.data ?? []).map((c, i) => (
+                    <tr key={i}>
+                      <td style={ui.td}>{c.dia}</td>
+                      <td style={ui.td}>{c.franjaHoraria}</td>
+                      <td style={ui.td}>{c.totalCitas}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </ChartCard>
       </div>

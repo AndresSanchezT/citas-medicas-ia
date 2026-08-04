@@ -9,6 +9,8 @@ import { fetchSlots } from '../api/schedules';
 import { Modal } from '../components/Modal';
 import { TriageModal } from '../components/TriageModal';
 import { ReagendarModal } from '../components/ReagendarModal';
+import { ResultadoPoliticaModal } from '../components/ResultadoPoliticaModal';
+import { SlotCalendarPicker } from '../components/SlotCalendarPicker';
 import { AppointmentActions, ESTADO_LABEL } from '../components/AppointmentActions';
 import { useAppointmentMutations } from '../hooks/useAppointmentMutations';
 import { useAuth } from '../context/AuthContext';
@@ -77,6 +79,13 @@ export function AppointmentsPage() {
   const { register, handleSubmit, reset, watch, setValue } = useForm<NewAppointmentForm>();
   const watchedDoctorId = watch('doctorId');
   const watchedPagado = watch('pagado');
+  const watchedSlotId = watch('slotId');
+
+  // Precio de consulta de la especialidad elegida: se usa para autocompletar el monto
+  // pagado apenas se marca la casilla (el usuario todavía puede editarlo a mano).
+  const precioEspecialidadSeleccionada = nuevaCitaEspecialidadId
+    ? specialties.find((s) => s.id === Number(nuevaCitaEspecialidadId))?.precioConsulta ?? null
+    : null;
 
   const appointmentActions = useAppointmentMutations(['appointments']);
   const createMutation = useMutation({
@@ -104,6 +113,10 @@ export function AppointmentsPage() {
     setValue('doctorId', '' as unknown as number);
     setValue('slotId', '' as unknown as number);
     setSelectedDoctorId(null);
+    if (watch('pagado')) {
+      const precio = specialties.find((s) => s.id === Number(value))?.precioConsulta;
+      if (precio != null) setValue('monto', String(precio));
+    }
   }
 
   const doctoresPorEspecialidad = nuevaCitaEspecialidadId
@@ -180,6 +193,7 @@ export function AppointmentsPage() {
             <tr>
               <th style={ui.th}>Paciente</th>
               <th style={ui.th}>Médico</th>
+              <th style={ui.th}>Especialidad</th>
               <th style={ui.th}>Fecha</th>
               <th style={ui.th}>Hora</th>
               <th style={ui.th}>Estado</th>
@@ -188,15 +202,16 @@ export function AppointmentsPage() {
           </thead>
           <tbody>
             {isLoading && (
-              <tr><td style={ui.td} colSpan={6}>Cargando...</td></tr>
+              <tr><td style={ui.td} colSpan={7}>Cargando...</td></tr>
             )}
             {!isLoading && appointments.length === 0 && (
-              <tr><td style={ui.td} colSpan={6}>Sin citas registradas.</td></tr>
+              <tr><td style={ui.td} colSpan={7}>Sin citas registradas.</td></tr>
             )}
             {appointments.map((a) => (
               <tr key={a.id}>
                 <td style={ui.td}>{a.patient?.nombres} {a.patient?.apellidos}</td>
                 <td style={ui.td}>{a.doctor?.nombres} {a.doctor?.apellidos}</td>
+                <td style={ui.td}>{a.doctor?.specialty?.nombre ?? '—'}</td>
                 <td style={ui.td}>{a.fecha.split('T')[0]}</td>
                 <td style={ui.td}>{a.horaInicio}</td>
                 <td style={ui.td}><span style={ui.badgeColor(a.estado)}>{ESTADO_LABEL[a.estado]}</span></td>
@@ -284,27 +299,44 @@ export function AppointmentsPage() {
               ))}
             </select>
 
-            <label>Cupo disponible</label>
-            <select {...register('slotId', { required: true })} style={ui.input} defaultValue="" disabled={!watchedDoctorId}>
-              <option value="" disabled>
-                {watchedDoctorId ? (disponibles.length ? 'Seleccionar...' : 'Sin cupos disponibles') : 'Selecciona un médico primero'}
-              </option>
-              {disponibles.map((s) => (
-                <option key={s.id} value={s.id}>{s.fecha.split('T')[0]} — {s.horaInicio}</option>
-              ))}
-            </select>
+            <label>Fecha y hora del cupo</label>
+            <input type="hidden" {...register('slotId', { required: true })} />
+            {watchedDoctorId ? (
+              <SlotCalendarPicker
+                slots={disponibles}
+                value={watchedSlotId || null}
+                onChange={(id) => setValue('slotId', id, { shouldValidate: true })}
+              />
+            ) : (
+              <p style={{ color: 'var(--text-muted)', fontSize: 13, marginBottom: 12 }}>Selecciona un médico primero.</p>
+            )}
 
             <label>Motivo de consulta</label>
             <input {...register('motivoConsulta')} placeholder="Ej. Dolor de cabeza, control rutinario..." style={ui.input} />
 
             <label style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: watchedPagado ? 4 : 12 }}>
-              <input type="checkbox" {...register('pagado')} style={{ width: 'auto', marginBottom: 0 }} />
+              <input
+                type="checkbox"
+                {...register('pagado', {
+                  onChange: (e) => {
+                    if (e.target.checked && precioEspecialidadSeleccionada != null) {
+                      setValue('monto', String(precioEspecialidadSeleccionada));
+                    }
+                  },
+                })}
+                style={{ width: 'auto', marginBottom: 0 }}
+              />
               El paciente ya pagó la cita
             </label>
             {watchedPagado && (
               <>
                 <label>Monto pagado (S/)</label>
                 <input type="number" step="0.1" min={0} placeholder="Ej. 80" {...register('monto')} style={ui.input} />
+                {precioEspecialidadSeleccionada != null && (
+                  <small style={{ color: 'var(--text-muted)', display: 'block', marginTop: -8, marginBottom: 8 }}>
+                    Autocompletado con el precio de consulta de {specialties.find((s) => s.id === Number(nuevaCitaEspecialidadId))?.nombre} (S/ {precioEspecialidadSeleccionada}). Puedes editarlo si corresponde otro monto.
+                  </small>
+                )}
                 <small style={{ color: 'var(--text-muted)', display: 'block', marginBottom: 12 }}>
                   Política: la primera vez que se reprograma o cancela esta cita, el pago queda a salvo; una segunda cancelación lo pierde.
                 </small>
@@ -329,6 +361,13 @@ export function AppointmentsPage() {
 
       {reagendarAppointment && (
         <ReagendarModal appointment={reagendarAppointment} onClose={() => setReagendarAppointment(null)} />
+      )}
+
+      {appointmentActions.resultadoPolitica && (
+        <ResultadoPoliticaModal
+          appointment={appointmentActions.resultadoPolitica}
+          onClose={appointmentActions.limpiarResultadoPolitica}
+        />
       )}
     </div>
   );

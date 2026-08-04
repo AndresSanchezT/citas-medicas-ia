@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { createPatient, deactivatePatient, fetchPatients, updatePatient, type Patient } from '../api/patients';
+import { createPatient, deactivatePatient, fetchPatients, updatePatient, SEXO_LABEL, type Patient, type Sexo } from '../api/patients';
 import { Modal } from '../components/Modal';
 import { PatientHistoryModal } from '../components/PatientHistoryModal';
 import { useAuth } from '../context/AuthContext';
@@ -13,6 +13,7 @@ const patientSchema = z.object({
   nombres: z.string().min(1, 'Requerido'),
   apellidos: z.string().min(1, 'Requerido'),
   documentoIdentidad: z.string().min(1, 'Requerido'),
+  sexo: z.enum(['MASCULINO', 'FEMENINO'], { message: 'Selecciona el sexo del paciente' }),
   telefono: z.string().optional(),
   email: z.union([z.literal(''), z.string().email('Correo inválido')]).optional(),
   direccion: z.string().optional(),
@@ -56,7 +57,7 @@ export function PatientsPage() {
 
   function openCreate() {
     setEditing(null);
-    reset({ nombres: '', apellidos: '', documentoIdentidad: '', telefono: '', email: '', direccion: '' });
+    reset({ nombres: '', apellidos: '', documentoIdentidad: '', sexo: undefined as unknown as Sexo, telefono: '', email: '', direccion: '' });
     setShowForm(true);
   }
 
@@ -66,6 +67,7 @@ export function PatientsPage() {
       nombres: patient.nombres,
       apellidos: patient.apellidos,
       documentoIdentidad: patient.documentoIdentidad,
+      sexo: patient.sexo ?? (undefined as unknown as Sexo),
       telefono: patient.telefono ?? '',
       email: patient.email ?? '',
       direccion: patient.direccion ?? '',
@@ -102,6 +104,7 @@ export function PatientsPage() {
             <tr>
               <th style={ui.th}>Nombre</th>
               <th style={ui.th}>Documento</th>
+              <th style={ui.th}>Sexo</th>
               <th style={ui.th}>Teléfono</th>
               <th style={ui.th}>Email</th>
               <th style={ui.th}>Acciones</th>
@@ -110,18 +113,19 @@ export function PatientsPage() {
           <tbody>
             {isLoading && (
               <tr>
-                <td style={ui.td} colSpan={5}>Cargando...</td>
+                <td style={ui.td} colSpan={6}>Cargando...</td>
               </tr>
             )}
             {!isLoading && patients.length === 0 && (
               <tr>
-                <td style={ui.td} colSpan={5}>Sin pacientes registrados.</td>
+                <td style={ui.td} colSpan={6}>Sin pacientes registrados.</td>
               </tr>
             )}
             {patients.map((p) => (
               <tr key={p.id}>
                 <td style={ui.td}>{p.nombres} {p.apellidos}</td>
                 <td style={ui.td}>{p.documentoIdentidad}</td>
+                <td style={ui.td}>{p.sexo ? SEXO_LABEL[p.sexo] : '—'}</td>
                 <td style={ui.td}>{p.telefono ?? '—'}</td>
                 <td style={ui.td}>{p.email ?? '—'}</td>
                 <td style={ui.td}>
@@ -166,6 +170,15 @@ export function PatientsPage() {
             <label>Documento de identidad</label>
             <input {...register('documentoIdentidad')} placeholder="Ej. 12345678" style={ui.input} />
             {errors.documentoIdentidad && <small style={{ color: 'var(--color-critical)' }}>{errors.documentoIdentidad.message}</small>}
+
+            <label>Sexo</label>
+            <select {...register('sexo')} style={ui.input} defaultValue="">
+              <option value="" disabled>Seleccionar...</option>
+              {Object.entries(SEXO_LABEL).map(([k, v]) => (
+                <option key={k} value={k}>{v}</option>
+              ))}
+            </select>
+            {errors.sexo && <small style={{ color: 'var(--color-critical)' }}>{errors.sexo.message}</small>}
 
             <label>Teléfono</label>
             <input {...register('telefono')} placeholder="Ej. 987654321" style={ui.input} />

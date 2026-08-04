@@ -1,7 +1,13 @@
-import { IsEnum, IsInt, IsNumber, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
+import { IsDateString, IsEnum, IsInt, IsNumber, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
 import { TriagePrioridad } from '../../../generated/prisma/enums';
 
 export class CreateTriageDto {
+  // Momento en que se apretó "Iniciar triaje" en el formulario; el fin lo pone el
+  // servidor al guardar (ver AppointmentsService.upsertTriage).
+  @IsOptional()
+  @IsDateString()
+  inicioTriajeEn?: string;
+
   @IsOptional()
   @IsInt()
   @Min(40)

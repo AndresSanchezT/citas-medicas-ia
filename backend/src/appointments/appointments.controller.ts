@@ -15,9 +15,11 @@ import { Roles } from '../auth/decorators/roles.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { AppointmentsService } from './appointments.service';
+import { CompleteAppointmentDto } from './dto/complete-appointment.dto';
 import { CreateAppointmentDto } from './dto/create-appointment.dto';
 import { CreateTriageDto } from './dto/create-triage.dto';
 import { RescheduleAppointmentDto } from './dto/reschedule-appointment.dto';
+import { StartConsultationDto } from './dto/start-consultation.dto';
 
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('appointments')
@@ -80,14 +82,14 @@ export class AppointmentsController {
 
   @Patch(':id/start')
   @Roles(Role.ADMIN, Role.MEDICO)
-  start(@Param('id', ParseIntPipe) id: number) {
-    return this.appointmentsService.startConsultation(id);
+  start(@Param('id', ParseIntPipe) id: number, @Body() dto: StartConsultationDto) {
+    return this.appointmentsService.startConsultation(id, dto);
   }
 
   @Patch(':id/complete')
   @Roles(Role.ADMIN, Role.MEDICO)
-  complete(@Param('id', ParseIntPipe) id: number) {
-    return this.appointmentsService.complete(id);
+  complete(@Param('id', ParseIntPipe) id: number, @Body() dto: CompleteAppointmentDto) {
+    return this.appointmentsService.complete(id, dto);
   }
 
   @Patch(':id/cancel')

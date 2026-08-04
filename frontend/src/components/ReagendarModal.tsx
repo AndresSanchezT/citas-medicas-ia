@@ -4,6 +4,7 @@ import { rescheduleAppointment, type Appointment } from '../api/appointments';
 import { fetchDoctors } from '../api/doctors';
 import { fetchSlots } from '../api/schedules';
 import { Modal } from './Modal';
+import { SlotCalendarPicker } from './SlotCalendarPicker';
 import * as ui from './ui';
 
 interface ReagendarModalProps {
@@ -71,14 +72,7 @@ export function ReagendarModal({ appointment, onClose }: ReagendarModalProps) {
       </select>
 
       <label>Nuevo cupo disponible</label>
-      <select value={slotId ?? ''} onChange={(e) => setSlotId(Number(e.target.value))} style={ui.input}>
-        <option value="" disabled>
-          {disponibles.length ? 'Seleccionar...' : 'Sin cupos disponibles para este médico'}
-        </option>
-        {disponibles.map((s) => (
-          <option key={s.id} value={s.id}>{s.fecha.split('T')[0]} — {s.horaInicio}</option>
-        ))}
-      </select>
+      <SlotCalendarPicker slots={disponibles} value={slotId} onChange={setSlotId} />
 
       <label>Motivo de la reprogramación (opcional)</label>
       <textarea
@@ -90,7 +84,7 @@ export function ReagendarModal({ appointment, onClose }: ReagendarModalProps) {
       <small style={{ color: 'var(--text-muted)', display: 'block', marginBottom: 12 }}>
         {esRecuperacion
           ? 'Se crea una cita nueva enlazada a la anterior; el cambio queda registrado con tu usuario y este motivo para auditoría.'
-          : 'La cita original queda cancelada y se crea una nueva; el cambio queda registrado con tu usuario y este motivo para auditoría.'}
+          : 'La cita original queda marcada como "Reprogramada" y se crea una nueva; el cambio queda registrado con tu usuario y este motivo para auditoría.'}
       </small>
 
       {mutation.isError && (

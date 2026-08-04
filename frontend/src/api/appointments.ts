@@ -8,7 +8,8 @@ export type AppointmentStatus =
   | 'EN_CURSO'
   | 'COMPLETADA'
   | 'CANCELADA'
-  | 'NO_ASISTIO';
+  | 'NO_ASISTIO'
+  | 'REPROGRAMADA';
 
 export type TriagePrioridad = 'LEVE' | 'MODERADO' | 'URGENTE' | 'CRITICO';
 
@@ -28,6 +29,8 @@ export interface Triage {
   prioridad: TriagePrioridad | null;
   notas: string | null;
   registradoEn: string;
+  inicioTriajeEn: string | null;
+  finTriajeEn: string | null;
 }
 
 export interface Appointment {
@@ -93,13 +96,13 @@ export async function checkIn(id: number): Promise<Appointment> {
   return data;
 }
 
-export async function startConsultation(id: number): Promise<Appointment> {
-  const { data } = await apiClient.patch<Appointment>(`/appointments/${id}/start`);
+export async function startConsultation(id: number, horaAtencionInicioReal?: string): Promise<Appointment> {
+  const { data } = await apiClient.patch<Appointment>(`/appointments/${id}/start`, { horaAtencionInicioReal });
   return data;
 }
 
-export async function completeAppointment(id: number): Promise<Appointment> {
-  const { data } = await apiClient.patch<Appointment>(`/appointments/${id}/complete`);
+export async function completeAppointment(id: number, horaAtencionFinReal?: string): Promise<Appointment> {
+  const { data } = await apiClient.patch<Appointment>(`/appointments/${id}/complete`, { horaAtencionFinReal });
   return data;
 }
 
@@ -121,6 +124,7 @@ export async function rescheduleAppointment(id: number, newSlotId: number, motiv
 export async function upsertTriage(
   appointmentId: number,
   input: {
+    inicioTriajeEn?: string;
     presionSistolica?: number;
     presionDiastolica?: number;
     frecuenciaCardiaca?: number;

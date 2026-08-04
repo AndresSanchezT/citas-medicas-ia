@@ -91,6 +91,7 @@ const STATUS_MAP: Record<string, keyof typeof STATUS_TONES> = {
   COMPLETADA: 'good',
   CANCELADA: 'neutral',
   NO_ASISTIO: 'critical',
+  REPROGRAMADA: 'info',
   // Lista de espera
   ESPERANDO: 'warning',
   NOTIFICADO: 'info',

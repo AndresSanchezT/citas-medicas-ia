@@ -1,8 +1,21 @@
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import type { DashboardPoint, DoctorRankingItem, OccupancyPoint, WaitTimeWeeklyPoint } from '../api/reports';
+import type {
+  CitaConcurrida,
+  CostoPorEspecialidad,
+  DashboardPoint,
+  DoctorRankingItem,
+  OccupancyPoint,
+  WaitTimeWeeklyPoint,
+} from '../api/reports';
 
 type DocWithAutoTable = jsPDF & { lastAutoTable?: { finalY: number } };
+
+export interface ChartImage {
+  dataUrl: string;
+  width: number;
+  height: number;
+}
 
 const PERIOD_LABEL: Record<'month' | 'quarter' | 'year', string> = {
   month: 'Mensual',
@@ -52,6 +65,22 @@ function addSubsectionTitle(doc: DocWithAutoTable, title: string, y: number): nu
   return y + 5;
 }
 
+// Inserta la captura del gráfico (tomada del navegador con html2canvas) como imagen,
+// respetando su proporción real para que no salga estirado.
+function addChartImage(doc: DocWithAutoTable, chart: ChartImage | undefined, y: number): number {
+  if (!chart) return y;
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const maxWidth = pageWidth - 28;
+  const displayWidth = Math.min(maxWidth, 170);
+  const displayHeight = displayWidth * (chart.height / chart.width);
+  if (y + displayHeight > 285) {
+    doc.addPage();
+    y = 20;
+  }
+  doc.addImage(chart.dataUrl, 'PNG', 14, y, displayWidth, displayHeight);
+  return y + displayHeight + 8;
+}
+
 const SEMANA_FORMATTER = new Intl.DateTimeFormat('es-PE', { day: '2-digit', month: 'short', year: 'numeric' });
 function formatSemana(iso: string): string {
   return SEMANA_FORMATTER.format(new Date(`${iso}T00:00:00Z`));
@@ -63,12 +92,22 @@ export function downloadManagementReportPdf(params: {
   ranking: DoctorRankingItem[];
   occupancy: OccupancyPoint[];
   waitTimeWeekly: WaitTimeWeeklyPoint[];
+  costos: CostoPorEspecialidad[];
+  concurridas: CitaConcurrida[];
+  charts?: {
+    dashboard?: ChartImage;
+    doctorRanking?: ChartImage;
+    occupancy?: ChartImage;
+    waitTimeWeekly?: ChartImage;
+    costos?: ChartImage;
+  };
 }) {
-  const { period, dashboard, ranking, occupancy, waitTimeWeekly } = params;
+  const { period, dashboard, ranking, occupancy, waitTimeWeekly, costos, concurridas, charts } = params;
   const doc = new jsPDF() as DocWithAutoTable;
   let y = addHeader(doc, `Reporte gerencial — periodo ${PERIOD_LABEL[period]}`);
 
   y = addSectionTitle(doc, 'Tendencia de citas completadas / inasistencias', y);
+  y = addChartImage(doc, charts?.dashboard, y);
   autoTable(doc, {
     startY: y,
     head: [['Periodo', 'Completadas', 'Inasistencias', '% Inasistencia', 'Espera prom. (min)']],
@@ -86,6 +125,7 @@ export function downloadManagementReportPdf(params: {
   y = (doc.lastAutoTable?.finalY ?? y) + 12;
 
   y = addSectionTitle(doc, 'Ranking de médicos por pacientes atendidos', y);
+  y = addChartImage(doc, charts?.doctorRanking, y);
   autoTable(doc, {
     startY: y,
     head: [['Médico', 'Especialidad', 'Pacientes atendidos']],
@@ -96,22 +136,31 @@ export function downloadManagementReportPdf(params: {
   });
   y = (doc.lastAutoTable?.finalY ?? y) + 12;
 
-  y = addSectionTitle(doc, 'Ocupación por franja horaria', y);
-  autoTable(doc, {
-    startY: y,
-    head: [['Franja horaria', 'Pacientes']],
-    body: occupancy.map((o) => [o.franjaHoraria, o.totalPacientes]),
-    theme: 'striped',
-    headStyles: { fillColor: HEADER_FILL },
-    styles: { fontSize: 9 },
-  });
-  y = (doc.lastAutoTable?.finalY ?? y) + 12;
+  y = addSectionTitle(doc, 'Ocupación por franja horaria y especialidad', y);
+  y = addChartImage(doc, charts?.occupancy, y);
+  const especialidadesOcupacion = [...new Set(occupancy.map((o) => o.especialidad))].sort((a, b) => a.localeCompare(b, 'es'));
+  for (const especialidad of especialidadesOcupacion) {
+    y = addSubsectionTitle(doc, especialidad, y);
+    autoTable(doc, {
+      startY: y,
+      head: [['Franja horaria', 'Pacientes']],
+      body: occupancy
+        .filter((o) => o.especialidad === especialidad)
+        .sort((a, b) => a.franjaHoraria.localeCompare(b.franjaHoraria))
+        .map((o) => [o.franjaHoraria, o.totalPacientes]),
+      theme: 'striped',
+      headStyles: { fillColor: HEADER_FILL },
+      styles: { fontSize: 9 },
+    });
+    y = (doc.lastAutoTable?.finalY ?? y) + 10;
+  }
 
   y = addSectionTitle(doc, 'Tiempo de espera semanal por especialidad', y);
-  const especialidades = [...new Set(waitTimeWeekly.map((w) => w.especialidad))].sort((a, b) =>
+  y = addChartImage(doc, charts?.waitTimeWeekly, y);
+  const especialidadesEspera = [...new Set(waitTimeWeekly.map((w) => w.especialidad))].sort((a, b) =>
     a.localeCompare(b, 'es'),
   );
-  for (const especialidad of especialidades) {
+  for (const especialidad of especialidadesEspera) {
     y = addSubsectionTitle(doc, especialidad, y);
     autoTable(doc, {
       startY: y,
@@ -126,6 +175,28 @@ export function downloadManagementReportPdf(params: {
     });
     y = (doc.lastAutoTable?.finalY ?? y) + 10;
   }
+
+  y = addSectionTitle(doc, 'Reporte de costos: ingresos por especialidad', y);
+  y = addChartImage(doc, charts?.costos, y);
+  autoTable(doc, {
+    startY: y,
+    head: [['Especialidad', 'Total citas pagadas', 'Ingreso total (S/)']],
+    body: costos.map((c) => [c.especialidad, c.totalCitas, c.ingresoTotal.toFixed(2)]),
+    theme: 'striped',
+    headStyles: { fillColor: HEADER_FILL },
+    styles: { fontSize: 9 },
+  });
+  y = (doc.lastAutoTable?.finalY ?? y) + 12;
+
+  y = addSectionTitle(doc, 'Citas más concurridas (día y franja horaria)', y);
+  autoTable(doc, {
+    startY: y,
+    head: [['Día', 'Franja horaria', 'Total citas']],
+    body: concurridas.map((c) => [c.dia, c.franjaHoraria, c.totalCitas]),
+    theme: 'striped',
+    headStyles: { fillColor: HEADER_FILL },
+    styles: { fontSize: 9 },
+  });
 
   const fecha = new Date().toISOString().slice(0, 10);
   doc.save(`reporte-gerencial-${period}-${fecha}.pdf`);

@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { upsertTriage, type Appointment, type TriagePrioridad } from '../api/appointments';
@@ -53,6 +54,14 @@ export function TriageModal({ appointment, onClose }: TriageModalProps) {
   const queryClient = useQueryClient();
   const existing = appointment.triage;
 
+  // "Iniciar triaje" marca el momento en que empieza a tomarse los signos vitales; el fin
+  // lo pone el servidor al Guardar, así la duración no depende del reloj del navegador.
+  const [inicioTriaje, setInicioTriaje] = useState<string | null>(existing?.inicioTriajeEn ?? null);
+  const duracionPrevia =
+    existing?.inicioTriajeEn && existing?.finTriajeEn
+      ? Math.max(0, Math.round((new Date(existing.finTriajeEn).getTime() - new Date(existing.inicioTriajeEn).getTime()) / 60000))
+      : null;
+
   const { register, handleSubmit, watch } = useForm<TriageForm>({
     defaultValues: {
       presionSistolica: existing?.presionSistolica?.toString() ?? '',
@@ -73,6 +82,7 @@ export function TriageModal({ appointment, onClose }: TriageModalProps) {
   const saveMutation = useMutation({
     mutationFn: (values: TriageForm) =>
       upsertTriage(appointment.id, {
+        inicioTriajeEn: inicioTriaje ?? undefined,
         presionSistolica: toNumberOrUndefined(values.presionSistolica),
         presionDiastolica: toNumberOrUndefined(values.presionDiastolica),
         frecuenciaCardiaca: toNumberOrUndefined(values.frecuenciaCardiaca),
@@ -110,6 +120,34 @@ export function TriageModal({ appointment, onClose }: TriageModalProps) {
       onClose={onClose}
       width={520}
     >
+      <div
+        style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
+          background: 'var(--surface-sunken)', borderRadius: 'var(--radius-md)', padding: '0.6rem 0.8rem', marginBottom: 14,
+        }}
+      >
+        {inicioTriaje ? (
+          <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
+            Triaje iniciado a las {new Date(inicioTriaje).toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' })}
+          </span>
+        ) : (
+          <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>Aún no se marcó el inicio del triaje.</span>
+        )}
+        <button
+          type="button"
+          disabled={!!inicioTriaje}
+          onClick={() => setInicioTriaje(new Date().toISOString())}
+          style={{ ...ui.secondaryButton, ...(inicioTriaje ? { opacity: 0.5 } : {}) }}
+        >
+          {inicioTriaje ? '✓ Iniciado' : 'Iniciar triaje'}
+        </button>
+      </div>
+      {duracionPrevia != null && (
+        <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: -8, marginBottom: 14 }}>
+          Duración del último registro: {duracionPrevia} min.
+        </p>
+      )}
+
       <form onSubmit={handleSubmit((values) => saveMutation.mutate(values))}>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 1rem' }}>
           <div>

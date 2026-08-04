@@ -1,6 +1,7 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateSpecialtyDto } from './dto/create-specialty.dto';
+import { UpdateSpecialtyDto } from './dto/update-specialty.dto';
 
 @Injectable()
 export class SpecialtiesService {
@@ -24,5 +25,10 @@ export class SpecialtiesService {
       throw new NotFoundException(`Especialidad ${id} no encontrada`);
     }
     return specialty;
+  }
+
+  async update(id: number, dto: UpdateSpecialtyDto) {
+    await this.findOne(id);
+    return this.prisma.specialty.update({ where: { id }, data: dto });
   }
 }

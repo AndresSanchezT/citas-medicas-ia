@@ -4,6 +4,7 @@ import { fetchAppointments, type Appointment } from '../api/appointments';
 import { useAuth } from '../context/AuthContext';
 import { AppointmentActions, ESTADO_LABEL, PRIORIDAD_LABEL } from '../components/AppointmentActions';
 import { PatientHistoryModal } from '../components/PatientHistoryModal';
+import { ResultadoPoliticaModal } from '../components/ResultadoPoliticaModal';
 import { useAppointmentMutations } from '../hooks/useAppointmentMutations';
 import * as ui from '../components/ui';
 
@@ -113,6 +114,13 @@ export function MyAgendaPage() {
 
       {historyPatient && (
         <PatientHistoryModal patient={historyPatient} onClose={() => setHistoryPatient(null)} />
+      )}
+
+      {appointmentActions.resultadoPolitica && (
+        <ResultadoPoliticaModal
+          appointment={appointmentActions.resultadoPolitica}
+          onClose={appointmentActions.limpiarResultadoPolitica}
+        />
       )}
     </div>
   );

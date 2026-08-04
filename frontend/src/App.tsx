@@ -7,6 +7,7 @@ import { ReportsPage } from './pages/ReportsPage';
 import { MyAgendaPage } from './pages/MyAgendaPage';
 import { PatientsPage } from './pages/PatientsPage';
 import { DoctorsPage } from './pages/DoctorsPage';
+import { SpecialtiesPage } from './pages/SpecialtiesPage';
 import { AppointmentsPage } from './pages/AppointmentsPage';
 import { WaitlistPage } from './pages/WaitlistPage';
 import { AlertsPage } from './pages/AlertsPage';
@@ -50,6 +51,14 @@ function App() {
           />
           <Route path="/pacientes" element={<PatientsPage />} />
           <Route path="/medicos" element={<DoctorsPage />} />
+          <Route
+            path="/especialidades"
+            element={
+              <ProtectedRoute allowedRoles={['ADMIN']}>
+                <SpecialtiesPage />
+              </ProtectedRoute>
+            }
+          />
           <Route
             path="/citas"
             element={

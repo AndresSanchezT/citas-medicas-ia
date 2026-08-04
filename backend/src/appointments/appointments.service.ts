@@ -5,9 +5,11 @@ import { Role } from '../../generated/prisma/enums';
 import type { AuthenticatedUser } from '../auth/decorators/current-user.decorator';
 import { EmailService } from '../common/email.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { CompleteAppointmentDto } from './dto/complete-appointment.dto';
 import { CreateAppointmentDto } from './dto/create-appointment.dto';
 import { CreateTriageDto } from './dto/create-triage.dto';
 import { RescheduleAppointmentDto } from './dto/reschedule-appointment.dto';
+import { StartConsultationDto } from './dto/start-consultation.dto';
 
 // Un médico solo puede cancelar o marcar no-asistió en sus propias citas; los demás
 // roles (ADMIN, RECEPCIONISTA) gestionan la agenda de cualquier médico.
@@ -90,7 +92,9 @@ export class AppointmentsService {
         patient.email,
         'Confirmación de tu cita — Clínica Amazonas',
         `Hola ${patient.nombres}, tu cita con ${doctor.nombres} ${doctor.apellidos} quedó agendada para el ${fecha} a las ${appointment.horaInicio}. ` +
-          `${dto.motivoConsulta ? `Motivo: ${dto.motivoConsulta}. ` : ''}Si necesitas cancelarla o reprogramarla, comunícate con recepción.`,
+          `${dto.motivoConsulta ? `Motivo: ${dto.motivoConsulta}. ` : ''}Si necesitas cancelarla o reprogramarla, comunícate con recepción. ` +
+          'Importante: si faltas o cancelas esta cita, tienes un máximo de 24 horas desde ese momento para reprogramarla sin perder tu pago; ' +
+          'pasado ese plazo (o si vuelve a ocurrir una segunda vez), el pago ya no se puede recuperar.',
       );
     }
 
@@ -173,7 +177,7 @@ export class AppointmentsService {
     });
   }
 
-  async startConsultation(id: number) {
+  async startConsultation(id: number, dto: StartConsultationDto = {}) {
     const appointment = await this.findOne(id);
     if (!appointment.horaLlegadaReal) {
       throw new BadRequestException('El paciente aún no ha hecho check-in');
@@ -181,13 +185,16 @@ export class AppointmentsService {
     if (appointment.estado !== 'CONFIRMADA') {
       throw new BadRequestException(`No se puede iniciar la consulta desde el estado ${appointment.estado}`);
     }
+    // El médico puede asignar la hora real de inicio (ej. si empezó a atender unos
+    // minutos antes/después de tocar el botón); si no la manda, se usa la hora actual.
+    const horaAtencionInicioReal = dto.horaAtencionInicioReal ? new Date(dto.horaAtencionInicioReal) : new Date();
     return this.prisma.appointment.update({
       where: { id },
-      data: { horaAtencionInicioReal: new Date(), estado: 'EN_CURSO' },
+      data: { horaAtencionInicioReal, estado: 'EN_CURSO' },
     });
   }
 
-  async complete(id: number) {
+  async complete(id: number, dto: CompleteAppointmentDto = {}) {
     const appointment = await this.findOne(id);
     if (appointment.estado !== 'EN_CURSO') {
       throw new BadRequestException(`No se puede completar una cita en estado ${appointment.estado}`);
@@ -196,7 +203,9 @@ export class AppointmentsService {
       throw new BadRequestException('Faltan los tiempos reales de llegada o inicio de atención');
     }
 
-    const horaAtencionFinReal = new Date();
+    // El médico puede asignar la hora real de fin de la consulta; si no la manda, se usa
+    // la hora actual (comportamiento anterior).
+    const horaAtencionFinReal = dto.horaAtencionFinReal ? new Date(dto.horaAtencionFinReal) : new Date();
     const tiempoEsperaMinutosReal = Math.max(
       0,
       Math.round(
@@ -249,7 +258,7 @@ export class AppointmentsService {
   async cancel(id: number, user: AuthenticatedUser) {
     const appointment = await this.findOne(id);
     verificarPropiaCita(appointment, user);
-    if (appointment.estado === 'COMPLETADA' || appointment.estado === 'CANCELADA') {
+    if (appointment.estado === 'COMPLETADA' || appointment.estado === 'CANCELADA' || appointment.estado === 'REPROGRAMADA') {
       throw new BadRequestException(`No se puede cancelar una cita en estado ${appointment.estado}`);
     }
 
@@ -368,7 +377,9 @@ export class AppointmentsService {
         if (appointment.slotId) {
           await tx.appointmentSlot.update({ where: { id: appointment.slotId }, data: { estado: 'DISPONIBLE' } });
         }
-        await tx.appointment.update({ where: { id }, data: { estado: 'CANCELADA' } });
+        // REPROGRAMADA (no CANCELADA): la cita no se canceló por sí sola, se movió a otro
+        // horario/médico — dejarla como "Cancelada" confundía en la tabla de Citas.
+        await tx.appointment.update({ where: { id }, data: { estado: 'REPROGRAMADA' } });
       }
 
       // 2) Creación del nuevo registro: fila nueva con la fecha/hora elegida, en Pendiente.
@@ -426,10 +437,17 @@ export class AppointmentsService {
 
   async upsertTriage(appointmentId: number, dto: CreateTriageDto) {
     await this.findOne(appointmentId);
+    const existing = await this.prisma.triage.findUnique({ where: { appointmentId } });
+    const { inicioTriajeEn: inicioTriajeEnDto, ...datosTriaje } = dto;
+    // El inicio queda fijo la primera vez que se marca (o se conserva el que ya había); el
+    // fin siempre se pone con la hora del servidor al guardar, para que la duración del
+    // triaje no dependa del reloj del navegador.
+    const inicioTriajeEn = inicioTriajeEnDto ? new Date(inicioTriajeEnDto) : (existing?.inicioTriajeEn ?? undefined);
+    const finTriajeEn = new Date();
     return this.prisma.triage.upsert({
       where: { appointmentId },
-      create: { appointmentId, ...dto },
-      update: { ...dto },
+      create: { appointmentId, ...datosTriaje, inicioTriajeEn, finTriajeEn },
+      update: { ...datosTriaje, inicioTriajeEn, finTriajeEn },
     });
   }
 }
