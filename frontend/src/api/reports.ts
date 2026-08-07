@@ -38,7 +38,7 @@ export interface WaitTimeWeeklyPoint {
   tiempoEsperaPromedioMinutos: number;
 }
 
-export async function getDashboard(period: 'month' | 'quarter' | 'year'): Promise<DashboardPoint[]> {
+export async function getDashboard(period: 'week' | 'month' | 'quarter' | 'year'): Promise<DashboardPoint[]> {
   const { data } = await apiClient.get<DashboardPoint[]>('/reports/dashboard', { params: { period } });
   return data;
 }
@@ -89,5 +89,26 @@ export interface CitaConcurrida {
 
 export async function getCitasMasConcurridas(): Promise<CitaConcurrida[]> {
   const { data } = await apiClient.get<CitaConcurrida[]>('/reports/citas-mas-concurridas');
+  return data;
+}
+
+export interface CitaPorEspecialidad {
+  especialidad: string;
+  totalCitas: number;
+}
+
+export async function getCitasPorEspecialidad(): Promise<CitaPorEspecialidad[]> {
+  const { data } = await apiClient.get<CitaPorEspecialidad[]>('/reports/citas-por-especialidad');
+  return data;
+}
+
+export interface TiempoConsultaPorEspecialidad {
+  especialidad: string;
+  tiempoConsultaPromedioMinutos: number;
+  totalConsultas: number;
+}
+
+export async function getTiempoConsultaPorEspecialidad(): Promise<TiempoConsultaPorEspecialidad[]> {
+  const { data } = await apiClient.get<TiempoConsultaPorEspecialidad[]>('/reports/tiempo-consulta-por-especialidad');
   return data;
 }

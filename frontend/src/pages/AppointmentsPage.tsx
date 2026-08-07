@@ -115,7 +115,7 @@ export function AppointmentsPage() {
     setSelectedDoctorId(null);
     if (watch('pagado')) {
       const precio = specialties.find((s) => s.id === Number(value))?.precioConsulta;
-      if (precio != null) setValue('monto', String(precio));
+      setValue('monto', precio != null ? String(precio) : '');
     }
   }
 
@@ -319,8 +319,8 @@ export function AppointmentsPage() {
                 type="checkbox"
                 {...register('pagado', {
                   onChange: (e) => {
-                    if (e.target.checked && precioEspecialidadSeleccionada != null) {
-                      setValue('monto', String(precioEspecialidadSeleccionada));
+                    if (e.target.checked) {
+                      setValue('monto', precioEspecialidadSeleccionada != null ? String(precioEspecialidadSeleccionada) : '');
                     }
                   },
                 })}
@@ -331,10 +331,20 @@ export function AppointmentsPage() {
             {watchedPagado && (
               <>
                 <label>Monto pagado (S/)</label>
-                <input type="number" step="0.1" min={0} placeholder="Ej. 80" {...register('monto')} style={ui.input} />
-                {precioEspecialidadSeleccionada != null && (
+                <input
+                  type="number"
+                  readOnly
+                  placeholder="Selecciona una especialidad con precio definido"
+                  {...register('monto')}
+                  style={{ ...ui.input, background: 'var(--surface-sunken)', color: 'var(--text-secondary)', cursor: 'not-allowed' }}
+                />
+                {precioEspecialidadSeleccionada != null ? (
                   <small style={{ color: 'var(--text-muted)', display: 'block', marginTop: -8, marginBottom: 8 }}>
-                    Autocompletado con el precio de consulta de {specialties.find((s) => s.id === Number(nuevaCitaEspecialidadId))?.nombre} (S/ {precioEspecialidadSeleccionada}). Puedes editarlo si corresponde otro monto.
+                    Monto automático: precio de consulta de {specialties.find((s) => s.id === Number(nuevaCitaEspecialidadId))?.nombre} (S/ {precioEspecialidadSeleccionada}). No se puede editar manualmente.
+                  </small>
+                ) : (
+                  <small style={{ color: 'var(--color-critical)', display: 'block', marginTop: -8, marginBottom: 8 }}>
+                    Esta especialidad no tiene un precio de consulta definido. Configúralo en "Especialidades" para poder registrar el pago.
                   </small>
                 )}
                 <small style={{ color: 'var(--text-muted)', display: 'block', marginBottom: 12 }}>

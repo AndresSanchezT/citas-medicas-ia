@@ -4,6 +4,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { createDoctor, deactivateDoctor, fetchDoctors, updateDoctor, type Doctor } from '../api/doctors';
+import { TIPO_DOCUMENTO_LABEL } from '../api/patients';
 import { createSpecialty, fetchSpecialties } from '../api/specialties';
 import { Modal } from '../components/Modal';
 import { DoctorTimeOffModal } from '../components/DoctorTimeOffModal';
@@ -11,15 +12,27 @@ import { DoctorScheduleModal } from '../components/DoctorScheduleModal';
 import { useAuth } from '../context/AuthContext';
 import * as ui from '../components/ui';
 
-const doctorSchema = z.object({
-  nombres: z.string().min(1, 'Requerido'),
-  apellidos: z.string().min(1, 'Requerido'),
-  documentoIdentidad: z.string().min(1, 'Requerido'),
-  specialtyId: z.string().min(1, 'Selecciona una especialidad'),
-  telefono: z.string().optional(),
-  email: z.union([z.literal(''), z.string().email('Correo inválido')]).optional(),
-  password: z.union([z.literal(''), z.string().min(6, 'Mínimo 6 caracteres')]).optional(),
-});
+// El DNI exige exactamente 8 dígitos (como en el resto del sistema); los demás tipos de
+// documento (pasaporte, carné de extranjería, otro) aceptan alfanumérico hasta 20
+// caracteres, porque no todos los países usan solo números.
+const doctorSchema = z
+  .object({
+    nombres: z.string().min(1, 'Requerido'),
+    apellidos: z.string().min(1, 'Requerido'),
+    tipoDocumento: z.enum(['DNI', 'PASAPORTE', 'CARNET_EXTRANJERIA', 'OTRO']),
+    documentoIdentidad: z.string().min(1, 'Requerido'),
+    specialtyId: z.string().min(1, 'Selecciona una especialidad'),
+    telefono: z.string().optional(),
+    email: z.union([z.literal(''), z.string().email('Correo inválido')]).optional(),
+    password: z.union([z.literal(''), z.string().min(6, 'Mínimo 6 caracteres')]).optional(),
+  })
+  .superRefine((values, ctx) => {
+    if (values.tipoDocumento === 'DNI' && !/^\d{8}$/.test(values.documentoIdentidad)) {
+      ctx.addIssue({ code: 'custom', path: ['documentoIdentidad'], message: 'El DNI debe tener exactamente 8 dígitos' });
+    } else if (values.tipoDocumento !== 'DNI' && !/^[A-Za-z0-9-]{1,20}$/.test(values.documentoIdentidad)) {
+      ctx.addIssue({ code: 'custom', path: ['documentoIdentidad'], message: 'Máximo 20 caracteres alfanuméricos' });
+    }
+  });
 type DoctorForm = z.infer<typeof doctorSchema>;
 
 export function DoctorsPage() {
@@ -37,9 +50,10 @@ export function DoctorsPage() {
   const { data: doctors = [], isLoading } = useQuery({ queryKey: ['doctors'], queryFn: fetchDoctors });
   const { data: specialties = [] } = useQuery({ queryKey: ['specialties'], queryFn: fetchSpecialties });
 
-  const { register, handleSubmit, reset, setError, formState: { errors, isSubmitting } } = useForm<DoctorForm>({
+  const { register, handleSubmit, reset, setError, watch, formState: { errors, isSubmitting } } = useForm<DoctorForm>({
     resolver: zodResolver(doctorSchema),
   });
+  const watchedTipoDocumento = watch('tipoDocumento');
 
   const saveMutation = useMutation({
     mutationFn: (values: DoctorForm) => {
@@ -82,7 +96,7 @@ export function DoctorsPage() {
 
   function openCreate() {
     setEditing(null);
-    reset({ nombres: '', apellidos: '', documentoIdentidad: '', specialtyId: '', telefono: '', email: '', password: '' });
+    reset({ nombres: '', apellidos: '', tipoDocumento: 'DNI', documentoIdentidad: '', specialtyId: '', telefono: '', email: '', password: '' });
     setShowForm(true);
   }
 
@@ -91,6 +105,7 @@ export function DoctorsPage() {
     reset({
       nombres: doctor.nombres,
       apellidos: doctor.apellidos,
+      tipoDocumento: doctor.tipoDocumento,
       documentoIdentidad: doctor.documentoIdentidad,
       specialtyId: String(doctor.specialtyId),
       telefono: doctor.telefono ?? '',
@@ -142,7 +157,7 @@ export function DoctorsPage() {
               <tr key={d.id}>
                 <td style={ui.td}>{d.nombres} {d.apellidos}</td>
                 <td style={ui.td}>{d.specialty?.nombre}</td>
-                <td style={ui.td}>{d.documentoIdentidad}</td>
+                <td style={ui.td}>{TIPO_DOCUMENTO_LABEL[d.tipoDocumento]}: {d.documentoIdentidad}</td>
                 <td style={ui.td}>{d.telefono ?? d.email ?? '—'}</td>
                 <td style={ui.td}>
                   <button style={{ ...ui.secondaryButton, marginRight: 8 }} onClick={() => setScheduleDoctor(d)}>
@@ -186,8 +201,28 @@ export function DoctorsPage() {
             <input {...register('apellidos')} placeholder="Ej. García Flores" style={ui.input} />
             {errors.apellidos && <small style={{ color: 'var(--color-critical)' }}>{errors.apellidos.message}</small>}
 
+            <label>Tipo de documento</label>
+            <select {...register('tipoDocumento')} style={ui.input}>
+              {Object.entries(TIPO_DOCUMENTO_LABEL).map(([k, v]) => (
+                <option key={k} value={k}>{v}</option>
+              ))}
+            </select>
+
             <label>Documento de identidad</label>
-            <input {...register('documentoIdentidad')} placeholder="Ej. 10203040" style={ui.input} />
+            <input
+              {...register('documentoIdentidad', {
+                onChange: (e) => {
+                  e.target.value =
+                    watchedTipoDocumento === 'DNI'
+                      ? e.target.value.replace(/\D/g, '').slice(0, 8)
+                      : e.target.value.replace(/[^A-Za-z0-9-]/g, '').slice(0, 20);
+                },
+              })}
+              inputMode={watchedTipoDocumento === 'DNI' ? 'numeric' : 'text'}
+              maxLength={watchedTipoDocumento === 'DNI' ? 8 : 20}
+              placeholder={watchedTipoDocumento === 'DNI' ? 'Ej. 10203040' : 'Ej. AB123456'}
+              style={ui.input}
+            />
             {errors.documentoIdentidad && <small style={{ color: 'var(--color-critical)' }}>{errors.documentoIdentidad.message}</small>}
 
             <label>Especialidad</label>

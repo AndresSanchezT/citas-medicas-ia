@@ -92,6 +92,13 @@ enum EstadoReembolso {
   PERDIDO
 }
 
+enum TipoDocumento {
+  DNI
+  PASAPORTE
+  CARNET_EXTRANJERIA
+  OTRO
+}
+
 model Specialty {
   id             Int      @id @default(autoincrement())
   nombre         String   @unique @db.VarChar(100)
@@ -106,6 +113,7 @@ model Doctor {
   id                 Int      @id @default(autoincrement())
   nombres            String   @db.VarChar(100)
   apellidos          String   @db.VarChar(100)
+  tipoDocumento      TipoDocumento @default(DNI) @map("tipo_documento")
   documentoIdentidad String   @unique @map("documento_identidad") @db.VarChar(20)
   telefono           String?  @db.VarChar(20)
   email              String?  @db.VarChar(150)
@@ -144,6 +152,7 @@ model Patient {
   id                 Int      @id @default(autoincrement())
   nombres            String   @db.VarChar(100)
   apellidos          String   @db.VarChar(100)
+  tipoDocumento      TipoDocumento @default(DNI) @map("tipo_documento")
   documentoIdentidad String   @unique @map("documento_identidad") @db.VarChar(20)
   fechaNacimiento    DateTime? @map("fecha_nacimiento") @db.Date
   sexo               Sexo?

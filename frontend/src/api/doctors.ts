@@ -1,10 +1,12 @@
 import { apiClient } from './client';
 import type { Specialty } from './specialties';
+import type { TipoDocumento } from './patients';
 
 export interface Doctor {
   id: number;
   nombres: string;
   apellidos: string;
+  tipoDocumento: TipoDocumento;
   documentoIdentidad: string;
   telefono: string | null;
   email: string | null;
@@ -16,6 +18,7 @@ export interface Doctor {
 export interface DoctorInput {
   nombres: string;
   apellidos: string;
+  tipoDocumento?: TipoDocumento;
   documentoIdentidad: string;
   specialtyId: number;
   telefono?: string;

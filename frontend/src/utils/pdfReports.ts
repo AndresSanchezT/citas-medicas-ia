@@ -2,10 +2,12 @@ import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import type {
   CitaConcurrida,
+  CitaPorEspecialidad,
   CostoPorEspecialidad,
   DashboardPoint,
   DoctorRankingItem,
   OccupancyPoint,
+  TiempoConsultaPorEspecialidad,
   WaitTimeWeeklyPoint,
 } from '../api/reports';
 
@@ -17,7 +19,8 @@ export interface ChartImage {
   height: number;
 }
 
-const PERIOD_LABEL: Record<'month' | 'quarter' | 'year', string> = {
+const PERIOD_LABEL: Record<'week' | 'month' | 'quarter' | 'year', string> = {
+  week: 'Semanal',
   month: 'Mensual',
   quarter: 'Trimestral',
   year: 'Anual',
@@ -51,18 +54,82 @@ function addSectionTitle(doc: DocWithAutoTable, title: string, y: number): numbe
   return y + 6;
 }
 
-function addSubsectionTitle(doc: DocWithAutoTable, title: string, y: number): number {
-  if (y > 265) {
-    doc.addPage();
-    y = 20;
+// Las tablas por especialidad (ocupación por hora, espera semanal) solo tienen 2 columnas
+// angostas: apilarlas una debajo de otra desperdicia la mitad del ancho de la hoja. Esto
+// las acomoda de a 2 por fila, cada una a la mitad del ancho disponible.
+function addTablasPorEspecialidadEnPares(
+  doc: DocWithAutoTable,
+  especialidades: string[],
+  headRow: string[],
+  bodyFor: (especialidad: string) => (string | number)[][],
+  startY: number,
+): number {
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const margin = 14;
+  const gap = 8;
+  const colWidth = (pageWidth - margin * 2 - gap) / 2;
+  const col2X = margin + colWidth + gap;
+  // Aproximación del alto que jspdf-autotable usa a fontSize 9: ~8mm de encabezado
+  // + ~6.5mm por fila. Sirve para decidir el salto de página ANTES de dibujar el par,
+  // en vez de dejar que autoTable pagine una sola columna a mitad de tabla y descuadre
+  // la otra (eso es lo que pasaba antes: la fila derecha quedaba huérfana en la página
+  // siguiente, en una posición completamente distinta a la izquierda).
+  const estimarAlto = (filas: number) => 8 + filas * 6.5;
+
+  let y = startY;
+  for (let i = 0; i < especialidades.length; i += 2) {
+    const izquierda = especialidades[i];
+    const derecha = especialidades[i + 1] as string | undefined;
+    const bodyIzquierda = bodyFor(izquierda);
+    const bodyDerecha = derecha ? bodyFor(derecha) : [];
+
+    const altoPar = 5 + estimarAlto(Math.max(bodyIzquierda.length, bodyDerecha.length));
+    if (y + altoPar > 283) {
+      doc.addPage();
+      y = 20;
+    }
+
+    doc.setFontSize(10.5);
+    doc.setFont('helvetica', 'bolditalic');
+    doc.setTextColor(60);
+    doc.text(izquierda, margin, y);
+    if (derecha) doc.text(derecha, col2X, y);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(0);
+    const yTabla = y + 5;
+
+    autoTable(doc, {
+      startY: yTabla,
+      margin: { left: margin },
+      tableWidth: colWidth,
+      head: [headRow],
+      body: bodyIzquierda,
+      theme: 'striped',
+      headStyles: { fillColor: HEADER_FILL },
+      styles: { fontSize: 9 },
+      pageBreak: 'avoid',
+    });
+    const finalYIzquierda = doc.lastAutoTable?.finalY ?? yTabla;
+
+    let finalYDerecha = yTabla;
+    if (derecha) {
+      autoTable(doc, {
+        startY: yTabla,
+        margin: { left: col2X },
+        tableWidth: colWidth,
+        head: [headRow],
+        body: bodyDerecha,
+        theme: 'striped',
+        headStyles: { fillColor: HEADER_FILL },
+        styles: { fontSize: 9 },
+        pageBreak: 'avoid',
+      });
+      finalYDerecha = doc.lastAutoTable?.finalY ?? yTabla;
+    }
+
+    y = Math.max(finalYIzquierda, finalYDerecha) + 10;
   }
-  doc.setFontSize(10.5);
-  doc.setFont('helvetica', 'bolditalic');
-  doc.setTextColor(60);
-  doc.text(title, 14, y);
-  doc.setFont('helvetica', 'normal');
-  doc.setTextColor(0);
-  return y + 5;
+  return y;
 }
 
 // Inserta la captura del gráfico (tomada del navegador con html2canvas) como imagen,
@@ -87,22 +154,26 @@ function formatSemana(iso: string): string {
 }
 
 export function downloadManagementReportPdf(params: {
-  period: 'month' | 'quarter' | 'year';
+  period: 'week' | 'month' | 'quarter' | 'year';
   dashboard: DashboardPoint[];
   ranking: DoctorRankingItem[];
   occupancy: OccupancyPoint[];
   waitTimeWeekly: WaitTimeWeeklyPoint[];
   costos: CostoPorEspecialidad[];
   concurridas: CitaConcurrida[];
+  citasPorEspecialidad: CitaPorEspecialidad[];
+  tiempoConsulta: TiempoConsultaPorEspecialidad[];
   charts?: {
     dashboard?: ChartImage;
     doctorRanking?: ChartImage;
     occupancy?: ChartImage;
     waitTimeWeekly?: ChartImage;
     costos?: ChartImage;
+    citasPorEspecialidad?: ChartImage;
+    tiempoConsulta?: ChartImage;
   };
 }) {
-  const { period, dashboard, ranking, occupancy, waitTimeWeekly, costos, concurridas, charts } = params;
+  const { period, dashboard, ranking, occupancy, waitTimeWeekly, costos, concurridas, citasPorEspecialidad, tiempoConsulta, charts } = params;
   const doc = new jsPDF() as DocWithAutoTable;
   let y = addHeader(doc, `Reporte gerencial — periodo ${PERIOD_LABEL[period]}`);
 
@@ -139,42 +210,34 @@ export function downloadManagementReportPdf(params: {
   y = addSectionTitle(doc, 'Ocupación por franja horaria y especialidad', y);
   y = addChartImage(doc, charts?.occupancy, y);
   const especialidadesOcupacion = [...new Set(occupancy.map((o) => o.especialidad))].sort((a, b) => a.localeCompare(b, 'es'));
-  for (const especialidad of especialidadesOcupacion) {
-    y = addSubsectionTitle(doc, especialidad, y);
-    autoTable(doc, {
-      startY: y,
-      head: [['Franja horaria', 'Pacientes']],
-      body: occupancy
+  y = addTablasPorEspecialidadEnPares(
+    doc,
+    especialidadesOcupacion,
+    ['Franja horaria', 'Pacientes'],
+    (especialidad) =>
+      occupancy
         .filter((o) => o.especialidad === especialidad)
         .sort((a, b) => a.franjaHoraria.localeCompare(b.franjaHoraria))
         .map((o) => [o.franjaHoraria, o.totalPacientes]),
-      theme: 'striped',
-      headStyles: { fillColor: HEADER_FILL },
-      styles: { fontSize: 9 },
-    });
-    y = (doc.lastAutoTable?.finalY ?? y) + 10;
-  }
+    y,
+  );
 
   y = addSectionTitle(doc, 'Tiempo de espera semanal por especialidad', y);
   y = addChartImage(doc, charts?.waitTimeWeekly, y);
   const especialidadesEspera = [...new Set(waitTimeWeekly.map((w) => w.especialidad))].sort((a, b) =>
     a.localeCompare(b, 'es'),
   );
-  for (const especialidad of especialidadesEspera) {
-    y = addSubsectionTitle(doc, especialidad, y);
-    autoTable(doc, {
-      startY: y,
-      head: [['Semana', 'Espera prom. (min)']],
-      body: waitTimeWeekly
+  y = addTablasPorEspecialidadEnPares(
+    doc,
+    especialidadesEspera,
+    ['Semana', 'Espera prom. (min)'],
+    (especialidad) =>
+      waitTimeWeekly
         .filter((w) => w.especialidad === especialidad)
         .sort((a, b) => a.semana.localeCompare(b.semana))
         .map((w) => [formatSemana(w.semana), w.tiempoEsperaPromedioMinutos]),
-      theme: 'striped',
-      headStyles: { fillColor: HEADER_FILL },
-      styles: { fontSize: 9 },
-    });
-    y = (doc.lastAutoTable?.finalY ?? y) + 10;
-  }
+    y,
+  );
 
   y = addSectionTitle(doc, 'Reporte de costos: ingresos por especialidad', y);
   y = addChartImage(doc, charts?.costos, y);
@@ -182,6 +245,30 @@ export function downloadManagementReportPdf(params: {
     startY: y,
     head: [['Especialidad', 'Total citas pagadas', 'Ingreso total (S/)']],
     body: costos.map((c) => [c.especialidad, c.totalCitas, c.ingresoTotal.toFixed(2)]),
+    theme: 'striped',
+    headStyles: { fillColor: HEADER_FILL },
+    styles: { fontSize: 9 },
+  });
+  y = (doc.lastAutoTable?.finalY ?? y) + 12;
+
+  y = addSectionTitle(doc, 'Especialidad más solicitada (total de citas)', y);
+  y = addChartImage(doc, charts?.citasPorEspecialidad, y);
+  autoTable(doc, {
+    startY: y,
+    head: [['Especialidad', 'Total citas']],
+    body: citasPorEspecialidad.map((c) => [c.especialidad, c.totalCitas]),
+    theme: 'striped',
+    headStyles: { fillColor: HEADER_FILL },
+    styles: { fontSize: 9 },
+  });
+  y = (doc.lastAutoTable?.finalY ?? y) + 12;
+
+  y = addSectionTitle(doc, 'Tiempo de consulta promedio por especialidad', y);
+  y = addChartImage(doc, charts?.tiempoConsulta, y);
+  autoTable(doc, {
+    startY: y,
+    head: [['Especialidad', 'Duración promedio (min)', 'Consultas consideradas']],
+    body: tiempoConsulta.map((t) => [t.especialidad, t.tiempoConsultaPromedioMinutos, t.totalConsultas]),
     theme: 'striped',
     headStyles: { fillColor: HEADER_FILL },
     styles: { fontSize: 9 },

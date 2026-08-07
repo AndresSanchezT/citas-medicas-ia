@@ -1,0 +1,5 @@
+-- AlterTable
+ALTER TABLE `doctors` ADD COLUMN `tipo_documento` ENUM('DNI', 'PASAPORTE', 'CARNET_EXTRANJERIA', 'OTRO') NOT NULL DEFAULT 'DNI';
+
+-- AlterTable
+ALTER TABLE `patients` ADD COLUMN `tipo_documento` ENUM('DNI', 'PASAPORTE', 'CARNET_EXTRANJERIA', 'OTRO') NOT NULL DEFAULT 'DNI';

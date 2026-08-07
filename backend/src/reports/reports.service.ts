@@ -81,10 +81,16 @@ export class ReportsService {
     return count;
   }
 
-  // ---------- Dashboard por periodo (mensual/trimestral/anual) ----------
+  // ---------- Dashboard por periodo (semanal/mensual/trimestral/anual) ----------
 
-  async getDashboard(period: 'month' | 'quarter' | 'year', from?: string, to?: string) {
-    const desde = from ? new Date(from) : new Date(new Date().setMonth(new Date().getMonth() - 12));
+  async getDashboard(period: 'week' | 'month' | 'quarter' | 'year', from?: string, to?: string) {
+    // La semana usa una ventana por defecto más corta (12 semanas) que el resto (12 meses):
+    // mostrar 12 meses de puntos semanales sería un gráfico ilegible de ~52 barras.
+    const desde = from
+      ? new Date(from)
+      : period === 'week'
+        ? new Date(new Date().setDate(new Date().getDate() - 12 * 7))
+        : new Date(new Date().setMonth(new Date().getMonth() - 12));
     const hasta = to ? new Date(to) : new Date();
 
     const stats = await this.prisma.dailyStats.findMany({
@@ -96,6 +102,7 @@ export class ReportsService {
       const y = fecha.getUTCFullYear();
       if (period === 'year') return `${y}`;
       if (period === 'quarter') return `${y}-Q${Math.floor(fecha.getUTCMonth() / 3) + 1}`;
+      if (period === 'week') return this.mondayOfWeek(fecha).toISOString().split('T')[0];
       return `${y}-${(fecha.getUTCMonth() + 1).toString().padStart(2, '0')}`;
     };
 
@@ -338,5 +345,69 @@ export class ReportsService {
       })
       .sort((a, b) => b.totalCitas - a.totalCitas)
       .slice(0, 15);
+  }
+
+  // ---------- Especialidad más solicitada: total de citas registradas por especialidad
+  // (cualquier estado, para reflejar demanda real, no solo lo efectivamente atendido) ----------
+
+  async getCitasPorEspecialidad(from?: string, to?: string) {
+    const desde = from ? new Date(from) : new Date(new Date().setMonth(new Date().getMonth() - 12));
+    const hasta = to ? new Date(to) : new Date();
+
+    const citas = await this.prisma.appointment.findMany({
+      where: { fecha: { gte: desde, lte: hasta } },
+      select: { doctor: { select: { specialty: { select: { nombre: true } } } } },
+    });
+
+    const conteo = new Map<string, number>();
+    for (const cita of citas) {
+      const especialidad = cita.doctor.specialty.nombre;
+      conteo.set(especialidad, (conteo.get(especialidad) ?? 0) + 1);
+    }
+
+    return Array.from(conteo.entries())
+      .map(([especialidad, totalCitas]) => ({ especialidad, totalCitas }))
+      .sort((a, b) => b.totalCitas - a.totalCitas);
+  }
+
+  // ---------- Tiempo de consulta promedio por especialidad (duración real de la atención,
+  // no el tiempo de espera previo): horaAtencionFinReal - horaAtencionInicioReal ----------
+
+  async getTiempoConsultaPorEspecialidad(from?: string, to?: string) {
+    const desde = from ? new Date(from) : new Date(new Date().setMonth(new Date().getMonth() - 12));
+    const hasta = to ? new Date(to) : new Date();
+
+    const citas = await this.prisma.appointment.findMany({
+      where: {
+        estado: 'COMPLETADA',
+        horaAtencionInicioReal: { not: null },
+        horaAtencionFinReal: { not: null },
+        fecha: { gte: desde, lte: hasta },
+      },
+      select: {
+        horaAtencionInicioReal: true,
+        horaAtencionFinReal: true,
+        doctor: { select: { specialty: { select: { nombre: true } } } },
+      },
+    });
+
+    const porEspecialidad = new Map<string, { suma: number; conteo: number }>();
+    for (const cita of citas) {
+      const minutos = (cita.horaAtencionFinReal!.getTime() - cita.horaAtencionInicioReal!.getTime()) / 60000;
+      if (minutos < 0) continue;
+      const especialidad = cita.doctor.specialty.nombre;
+      if (!porEspecialidad.has(especialidad)) porEspecialidad.set(especialidad, { suma: 0, conteo: 0 });
+      const bucket = porEspecialidad.get(especialidad)!;
+      bucket.suma += minutos;
+      bucket.conteo += 1;
+    }
+
+    return Array.from(porEspecialidad.entries())
+      .map(([especialidad, { suma, conteo }]) => ({
+        especialidad,
+        tiempoConsultaPromedioMinutos: Math.round((suma / conteo) * 10) / 10,
+        totalConsultas: conteo,
+      }))
+      .sort((a, b) => b.tiempoConsultaPromedioMinutos - a.tiempoConsultaPromedioMinutos);
   }
 }

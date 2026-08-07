@@ -36,6 +36,19 @@ function tiempoEsperaLabel(entry: WaitlistEntry): string {
   return restante > 0 ? `~${restante} min` : 'Tiempo estimado superado';
 }
 
+// No hay ningún proceso automático que expire entradas viejas (ver waitlist.service.ts):
+// esto es una ayuda visual para que recepción detecte a simple vista quién lleva
+// demasiado tiempo sin respuesta y decida expirarlo a mano.
+const DIAS_ESPERA_LARGA = 30;
+
+function diasEsperando(entry: WaitlistEntry): number {
+  return Math.floor((Date.now() - new Date(entry.fechaSolicitud).getTime()) / 86_400_000);
+}
+
+function esperaLarga(entry: WaitlistEntry): boolean {
+  return (entry.estado === 'ESPERANDO' || entry.estado === 'NOTIFICADO') && diasEsperando(entry) >= DIAS_ESPERA_LARGA;
+}
+
 export function WaitlistPage() {
   const queryClient = useQueryClient();
   const [showForm, setShowForm] = useState(false);
@@ -43,6 +56,7 @@ export function WaitlistPage() {
   const [assignDoctorId, setAssignDoctorId] = useState<number | null>(null);
   const [assignSlotId, setAssignSlotId] = useState<number | null>(null);
   const [filtroEstado, setFiltroEstado] = useState('');
+  const [soloEsperasLargas, setSoloEsperasLargas] = useState(false);
 
   const { data: entries = [], isLoading } = useQuery({
     queryKey: ['waitlist', filtroEstado],
@@ -98,6 +112,8 @@ export function WaitlistPage() {
     setAssignSlotId(null);
   }
 
+  const entriesVisibles = soloEsperasLargas ? entries.filter(esperaLarga) : entries;
+
   const disponibles = slotsForAssign.filter((s) => s.estado === 'DISPONIBLE');
   const doctoresParaAsignar = assigning?.doctorId
     ? doctors.filter((d) => d.id === assigning.doctorId)
@@ -115,6 +131,15 @@ export function WaitlistPage() {
             <option value="ASIGNADO">Asignado</option>
             <option value="EXPIRADO">Expirado</option>
           </select>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13.5, color: 'var(--text-secondary)' }}>
+            <input
+              type="checkbox"
+              checked={soloEsperasLargas}
+              onChange={(e) => setSoloEsperasLargas(e.target.checked)}
+              style={{ width: 'auto', marginBottom: 0 }}
+            />
+            Solo esperas largas (+{DIAS_ESPERA_LARGA} días)
+          </label>
           <button style={ui.primaryButton} onClick={openCreate}>
             + Anotar paciente
           </button>
@@ -136,21 +161,29 @@ export function WaitlistPage() {
               <th style={ui.th}>Médico / Especialidad</th>
               <th style={ui.th}>Prioridad</th>
               <th style={ui.th}>Tiempo estimado</th>
+              <th style={ui.th}>Días esperando</th>
               <th style={ui.th}>Estado</th>
               <th style={ui.th}>Acciones</th>
             </tr>
           </thead>
           <tbody>
-            {isLoading && <tr><td style={ui.td} colSpan={6}>Cargando...</td></tr>}
-            {!isLoading && entries.length === 0 && (
-              <tr><td style={ui.td} colSpan={6}>Sin pacientes en lista de espera.</td></tr>
+            {isLoading && <tr><td style={ui.td} colSpan={7}>Cargando...</td></tr>}
+            {!isLoading && entriesVisibles.length === 0 && (
+              <tr><td style={ui.td} colSpan={7}>{soloEsperasLargas ? 'Ninguna espera supera los ' + DIAS_ESPERA_LARGA + ' días.' : 'Sin pacientes en lista de espera.'}</td></tr>
             )}
-            {entries.map((e) => (
-              <tr key={e.id}>
+            {entriesVisibles.map((e) => (
+              <tr key={e.id} style={e.prioridad === 'URGENTE' ? { background: 'var(--color-critical-tint)' } : undefined}>
                 <td style={ui.td}>{e.patient?.nombres} {e.patient?.apellidos}</td>
                 <td style={ui.td}>{e.doctor ? `${e.doctor.nombres} ${e.doctor.apellidos}` : e.specialty?.nombre ?? '—'}</td>
                 <td style={ui.td}>{e.prioridad}</td>
                 <td style={ui.td}>{tiempoEsperaLabel(e)}</td>
+                <td style={ui.td}>
+                  {(e.estado === 'ESPERANDO' || e.estado === 'NOTIFICADO') ? (
+                    <span style={esperaLarga(e) ? { color: 'var(--color-critical)', fontWeight: 600 } : undefined}>
+                      {diasEsperando(e)} día{diasEsperando(e) === 1 ? '' : 's'}
+                    </span>
+                  ) : '—'}
+                </td>
                 <td style={ui.td}><span style={ui.badgeColor(e.estado)}>{e.estado}</span></td>
                 <td style={ui.td}>
                   {(e.estado === 'ESPERANDO' || e.estado === 'NOTIFICADO') && (

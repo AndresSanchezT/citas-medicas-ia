@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
-import { upsertTriage, type Appointment, type TriagePrioridad } from '../api/appointments';
+import { upsertTriage, type Appointment, type Triage, type TriagePrioridad } from '../api/appointments';
 import { PRIORIDAD_LABEL } from './AppointmentActions';
 import { Modal } from './Modal';
 import * as ui from './ui';
@@ -50,6 +50,11 @@ function fueraDeRango(campo: keyof TriageForm, valor?: string): boolean {
   return n < rango.min || n > rango.max;
 }
 
+function formatHora(iso?: string | null): string {
+  if (!iso) return '—';
+  return new Date(iso).toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' });
+}
+
 export function TriageModal({ appointment, onClose }: TriageModalProps) {
   const queryClient = useQueryClient();
   const existing = appointment.triage;
@@ -57,10 +62,9 @@ export function TriageModal({ appointment, onClose }: TriageModalProps) {
   // "Iniciar triaje" marca el momento en que empieza a tomarse los signos vitales; el fin
   // lo pone el servidor al Guardar, así la duración no depende del reloj del navegador.
   const [inicioTriaje, setInicioTriaje] = useState<string | null>(existing?.inicioTriajeEn ?? null);
-  const duracionPrevia =
-    existing?.inicioTriajeEn && existing?.finTriajeEn
-      ? Math.max(0, Math.round((new Date(existing.finTriajeEn).getTime() - new Date(existing.inicioTriajeEn).getTime()) / 60000))
-      : null;
+  // Al guardar, el modal ya no se cierra solo: se queda mostrando la confirmación y la
+  // hora de inicio/fin reales que devolvió el servidor, hasta que el usuario lo cierre.
+  const [guardado, setGuardado] = useState<Triage | null>(null);
 
   const { register, handleSubmit, watch } = useForm<TriageForm>({
     defaultValues: {
@@ -94,9 +98,9 @@ export function TriageModal({ appointment, onClose }: TriageModalProps) {
         prioridad: values.prioridad || undefined,
         notas: values.notas || undefined,
       }),
-    onSuccess: () => {
+    onSuccess: (triage) => {
       queryClient.invalidateQueries({ queryKey: ['appointments'] });
-      onClose();
+      setGuardado(triage);
     },
   });
 
@@ -142,12 +146,6 @@ export function TriageModal({ appointment, onClose }: TriageModalProps) {
           {inicioTriaje ? '✓ Iniciado' : 'Iniciar triaje'}
         </button>
       </div>
-      {duracionPrevia != null && (
-        <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: -8, marginBottom: 14 }}>
-          Duración del último registro: {duracionPrevia} min.
-        </p>
-      )}
-
       <form onSubmit={handleSubmit((values) => saveMutation.mutate(values))}>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 1rem' }}>
           <div>
@@ -205,9 +203,44 @@ export function TriageModal({ appointment, onClose }: TriageModalProps) {
           <p style={{ color: 'var(--color-critical)' }}>No se pudo guardar el triaje. Verifica los valores ingresados.</p>
         )}
 
-        <button type="submit" disabled={saveMutation.isPending} style={{ ...ui.primaryButton, width: '100%' }}>
-          Guardar triaje
-        </button>
+        {guardado && (
+          <div
+            style={{
+              display: 'flex', gap: 10, alignItems: 'flex-start', background: 'var(--color-good-tint)',
+              borderRadius: 'var(--radius-md)', padding: '0.7rem 0.9rem', marginBottom: 12,
+            }}
+          >
+            <div
+              style={{
+                width: 22, height: 22, borderRadius: '50%', flexShrink: 0, background: 'var(--color-good)',
+                color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700,
+              }}
+            >
+              ✓
+            </div>
+            <span style={{ fontSize: 13.5, color: 'var(--color-good)', fontWeight: 600 }}>Se terminó el triaje.</span>
+          </div>
+        )}
+
+        <div
+          style={{
+            display: 'flex', justifyContent: 'space-between', fontSize: 12.5, color: 'var(--text-muted)',
+            borderTop: '1px solid var(--border)', paddingTop: 10, marginBottom: 12,
+          }}
+        >
+          <span>Hora inicio: {formatHora(guardado?.inicioTriajeEn ?? existing?.inicioTriajeEn ?? inicioTriaje)}</span>
+          <span>Hora fin: {formatHora(guardado?.finTriajeEn ?? existing?.finTriajeEn)}</span>
+        </div>
+
+        {guardado ? (
+          <button type="button" onClick={onClose} style={{ ...ui.primaryButton, width: '100%' }}>
+            Cerrar
+          </button>
+        ) : (
+          <button type="submit" disabled={saveMutation.isPending} style={{ ...ui.primaryButton, width: '100%' }}>
+            Guardar triaje
+          </button>
+        )}
       </form>
     </Modal>
   );

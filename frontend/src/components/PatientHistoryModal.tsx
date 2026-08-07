@@ -96,7 +96,14 @@ export function PatientHistoryModal({ patient, onClose }: PatientHistoryModalPro
             {historial.map((a) => (
               <tr key={a.id}>
                 <td style={ui.td}>{a.fecha.split('T')[0]} {a.horaInicio}</td>
-                <td style={ui.td}>{a.doctor?.nombres} {a.doctor?.apellidos}</td>
+                <td style={ui.td}>
+                  {a.doctor?.nombres} {a.doctor?.apellidos}
+                  {a.doctor?.specialty?.nombre && (
+                    <div>
+                      <small style={{ color: 'var(--text-muted)' }}>{a.doctor.specialty.nombre}</small>
+                    </div>
+                  )}
+                </td>
                 <td style={ui.td}>{a.motivoConsulta ?? '—'}</td>
                 <td style={ui.td}><span style={ui.badgeColor(a.estado)}>{ESTADO_LABEL[a.estado]}</span></td>
                 <td style={ui.td}>

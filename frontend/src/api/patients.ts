@@ -7,10 +7,22 @@ export const SEXO_LABEL: Record<Sexo, string> = {
   FEMENINO: 'Femenino',
 };
 
+// Compartido entre Pacientes y Médicos: ambos formularios usan el mismo combobox de tipo
+// de documento.
+export type TipoDocumento = 'DNI' | 'PASAPORTE' | 'CARNET_EXTRANJERIA' | 'OTRO';
+
+export const TIPO_DOCUMENTO_LABEL: Record<TipoDocumento, string> = {
+  DNI: 'DNI',
+  PASAPORTE: 'Pasaporte',
+  CARNET_EXTRANJERIA: 'Carné de extranjería',
+  OTRO: 'Otro',
+};
+
 export interface Patient {
   id: number;
   nombres: string;
   apellidos: string;
+  tipoDocumento: TipoDocumento;
   documentoIdentidad: string;
   fechaNacimiento: string | null;
   sexo: Sexo | null;
@@ -23,6 +35,7 @@ export interface Patient {
 export interface PatientInput {
   nombres: string;
   apellidos: string;
+  tipoDocumento?: TipoDocumento;
   documentoIdentidad: string;
   sexo?: Sexo;
   telefono?: string;

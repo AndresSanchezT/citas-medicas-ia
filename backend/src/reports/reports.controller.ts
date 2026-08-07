@@ -13,7 +13,7 @@ export class ReportsController {
   @Get('dashboard')
   @Roles(Role.ADMIN)
   getDashboard(
-    @Query('period') period: 'month' | 'quarter' | 'year' = 'month',
+    @Query('period') period: 'week' | 'month' | 'quarter' | 'year' = 'month',
     @Query('from') from?: string,
     @Query('to') to?: string,
   ) {
@@ -54,6 +54,18 @@ export class ReportsController {
   @Roles(Role.ADMIN)
   getCitasMasConcurridas(@Query('from') from?: string, @Query('to') to?: string) {
     return this.reportsService.getCitasMasConcurridas(from, to);
+  }
+
+  @Get('citas-por-especialidad')
+  @Roles(Role.ADMIN)
+  getCitasPorEspecialidad(@Query('from') from?: string, @Query('to') to?: string) {
+    return this.reportsService.getCitasPorEspecialidad(from, to);
+  }
+
+  @Get('tiempo-consulta-por-especialidad')
+  @Roles(Role.ADMIN)
+  getTiempoConsultaPorEspecialidad(@Query('from') from?: string, @Query('to') to?: string) {
+    return this.reportsService.getTiempoConsultaPorEspecialidad(from, to);
   }
 
   @Post('generate-daily-stats')
