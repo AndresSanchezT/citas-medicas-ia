@@ -177,8 +177,9 @@ export class AppointmentsService {
     });
   }
 
-  async startConsultation(id: number, dto: StartConsultationDto = {}) {
+  async startConsultation(id: number, dto: StartConsultationDto = {}, user: AuthenticatedUser) {
     const appointment = await this.findOne(id);
+    verificarPropiaCita(appointment, user);
     if (!appointment.horaLlegadaReal) {
       throw new BadRequestException('El paciente aún no ha hecho check-in');
     }
@@ -194,8 +195,9 @@ export class AppointmentsService {
     });
   }
 
-  async complete(id: number, dto: CompleteAppointmentDto = {}) {
+  async complete(id: number, dto: CompleteAppointmentDto = {}, user: AuthenticatedUser) {
     const appointment = await this.findOne(id);
+    verificarPropiaCita(appointment, user);
     if (appointment.estado !== 'EN_CURSO') {
       throw new BadRequestException(`No se puede completar una cita en estado ${appointment.estado}`);
     }
@@ -433,6 +435,22 @@ export class AppointmentsService {
         `${vencidas.count} cita(s) perdieron el reembolso por no reprogramarse dentro de las 24 horas.`,
       );
     }
+  }
+
+  // Se llama al apretar "Iniciar triaje": guarda la hora de inicio de una, aunque después
+  // se cierre el modal sin guardar los signos vitales. A propósito NO toca finTriajeEn acá
+  // (a diferencia de upsertTriage) — el fin solo se pone cuando se guardan los datos reales.
+  async iniciarTriaje(appointmentId: number) {
+    await this.findOne(appointmentId);
+    const existing = await this.prisma.triage.findUnique({ where: { appointmentId } });
+    // Idempotente: si ya se había marcado un inicio (ej. doble clic, o reabrir el modal
+    // sin haber terminado), se conserva el primero — no lo empujamos hacia adelante.
+    if (existing?.inicioTriajeEn) return existing;
+    return this.prisma.triage.upsert({
+      where: { appointmentId },
+      create: { appointmentId, inicioTriajeEn: new Date() },
+      update: { inicioTriajeEn: new Date() },
+    });
   }
 
   async upsertTriage(appointmentId: number, dto: CreateTriageDto) {

@@ -82,14 +82,22 @@ export class AppointmentsController {
 
   @Patch(':id/start')
   @Roles(Role.ADMIN, Role.MEDICO)
-  start(@Param('id', ParseIntPipe) id: number, @Body() dto: StartConsultationDto) {
-    return this.appointmentsService.startConsultation(id, dto);
+  start(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: StartConsultationDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.appointmentsService.startConsultation(id, dto, user);
   }
 
   @Patch(':id/complete')
   @Roles(Role.ADMIN, Role.MEDICO)
-  complete(@Param('id', ParseIntPipe) id: number, @Body() dto: CompleteAppointmentDto) {
-    return this.appointmentsService.complete(id, dto);
+  complete(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: CompleteAppointmentDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.appointmentsService.complete(id, dto, user);
   }
 
   @Patch(':id/cancel')
@@ -112,6 +120,12 @@ export class AppointmentsController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.appointmentsService.reschedule(id, dto, user);
+  }
+
+  @Patch(':id/triage/start')
+  @Roles(Role.ADMIN, Role.RECEPCIONISTA)
+  iniciarTriaje(@Param('id', ParseIntPipe) id: number) {
+    return this.appointmentsService.iniciarTriaje(id);
   }
 
   @Post(':id/triage')

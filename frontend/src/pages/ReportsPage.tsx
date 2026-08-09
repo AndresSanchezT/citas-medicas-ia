@@ -27,7 +27,7 @@ import {
   type OccupancyWeeklyPoint,
   type WaitTimeWeeklyPoint,
 } from '../api/reports';
-import { downloadManagementReportPdf, type ChartImage } from '../utils/pdfReports';
+import { downloadManagementReportPdf, type ChartImage, type SeccionReporte } from '../utils/pdfReports';
 import { colorForIndex } from '../utils/categoricalPalette';
 import * as ui from '../components/ui';
 
@@ -45,7 +45,7 @@ const PALETTE = {
 
 const PERIOD_LABEL: Record<Period, string> = { week: 'Semanal', month: 'Mensual', quarter: 'Trimestral', year: 'Anual' };
 type Period = 'week' | 'month' | 'quarter' | 'year';
-type Tab = 'general' | 'finanzas' | 'tiempos' | 'demanda';
+type Tab = SeccionReporte;
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'general', label: 'General' },
@@ -210,52 +210,72 @@ export function ReportsPage() {
     'totalPacientes',
   );
 
-  // El PDF debe incluir los gráficos de las 4 pestañas aunque solo una esté visible: se
-  // recorren una por una, se espera a que Recharts termine de pintar y recién ahí se
-  // captura, para no depender de que el usuario haya abierto cada pestaña a mano.
-  async function handleDownloadPdf() {
+  // Datos "de tabla" del reporte: siempre completos, independientemente de qué pestaña(s)
+  // se estén exportando (downloadManagementReportPdf ya filtra por sección internamente).
+  function datosReporte() {
+    return {
+      dashboard: data,
+      ranking: rankingQuery.data ?? [],
+      occupancy: occupancyQuery.data?.porHora ?? [],
+      waitTimeWeekly: waitTimeWeeklyQuery.data ?? [],
+      costos,
+      concurridas: concurridasQuery.data ?? [],
+      citasPorEspecialidad: citasEspecialidadQuery.data ?? [],
+      tiempoConsulta,
+    };
+  }
+
+  // Captura solo los gráficos que le corresponden a una pestaña puntual (se asume que esa
+  // pestaña ya está activa/renderizada al momento de llamar esto).
+  async function capturarSeccion(seccion: Tab) {
+    if (seccion === 'general') {
+      return { dashboard: await capturarGrafico(dashboardRef) };
+    }
+    if (seccion === 'finanzas') {
+      return {
+        costos: await capturarGrafico(costosRef),
+        citasPorEspecialidad: await capturarGrafico(citasEspecialidadRef),
+      };
+    }
+    if (seccion === 'tiempos') {
+      return {
+        waitTimeWeekly: await capturarGrafico(waitTimeRef),
+        tiempoConsulta: await capturarGrafico(tiempoConsultaRef),
+      };
+    }
+    return {
+      doctorRanking: await capturarGrafico(doctorRankingRef),
+      occupancy: await capturarGrafico(occupancyRef),
+    };
+  }
+
+  // "Descargar PDF": solo la pestaña que se está viendo ahora mismo, respetando el período
+  // elegido en el combobox (semanal/mensual/trimestral/anual).
+  async function handleDownloadPdfPestanaActual() {
+    setGenerandoPdf(true);
+    try {
+      await esperarRender();
+      const charts = await capturarSeccion(tab);
+      downloadManagementReportPdf({ period, secciones: [tab], ...datosReporte(), charts });
+    } finally {
+      setGenerandoPdf(false);
+    }
+  }
+
+  // "Reporte total": las 4 pestañas juntas, aunque solo una esté visible — se recorren una
+  // por una, se espera a que Recharts termine de pintar y recién ahí se captura cada una.
+  async function handleDownloadPdfTotal() {
     setGenerandoPdf(true);
     const tabPrevia = tab;
     try {
-      setTab('general');
-      await esperarRender();
-      const dashboardImg = await capturarGrafico(dashboardRef);
-
-      setTab('finanzas');
-      await esperarRender();
-      const costosImg = await capturarGrafico(costosRef);
-      const citasEspecialidadImg = await capturarGrafico(citasEspecialidadRef);
-
-      setTab('tiempos');
-      await esperarRender();
-      const waitTimeImg = await capturarGrafico(waitTimeRef);
-      const tiempoConsultaImg = await capturarGrafico(tiempoConsultaRef);
-
-      setTab('demanda');
-      await esperarRender();
-      const doctorRankingImg = await capturarGrafico(doctorRankingRef);
-      const occupancyImg = await capturarGrafico(occupancyRef);
-
-      downloadManagementReportPdf({
-        period,
-        dashboard: data,
-        ranking: rankingQuery.data ?? [],
-        occupancy: occupancyQuery.data?.porHora ?? [],
-        waitTimeWeekly: waitTimeWeeklyQuery.data ?? [],
-        costos,
-        concurridas: concurridasQuery.data ?? [],
-        citasPorEspecialidad: citasEspecialidadQuery.data ?? [],
-        tiempoConsulta,
-        charts: {
-          dashboard: dashboardImg,
-          doctorRanking: doctorRankingImg,
-          occupancy: occupancyImg,
-          waitTimeWeekly: waitTimeImg,
-          costos: costosImg,
-          citasPorEspecialidad: citasEspecialidadImg,
-          tiempoConsulta: tiempoConsultaImg,
-        },
-      });
+      const secciones: Tab[] = ['general', 'finanzas', 'tiempos', 'demanda'];
+      let charts: Record<string, ChartImage | undefined> = {};
+      for (const seccion of secciones) {
+        setTab(seccion);
+        await esperarRender();
+        charts = { ...charts, ...(await capturarSeccion(seccion)) };
+      }
+      downloadManagementReportPdf({ period, secciones, ...datosReporte(), charts });
     } finally {
       setTab(tabPrevia);
       setGenerandoPdf(false);
@@ -277,8 +297,11 @@ export function ReportsPage() {
               <option key={value} value={value}>{label}</option>
             ))}
           </select>
-          <button style={ui.primaryButton} disabled={isReportLoading || generandoPdf} onClick={handleDownloadPdf}>
-            {generandoPdf ? 'Generando PDF...' : 'Descargar PDF'}
+          <button style={ui.secondaryButton} disabled={isReportLoading || generandoPdf} onClick={handleDownloadPdfPestanaActual}>
+            {generandoPdf ? 'Generando...' : 'Descargar PDF'}
+          </button>
+          <button style={ui.primaryButton} disabled={isReportLoading || generandoPdf} onClick={handleDownloadPdfTotal}>
+            {generandoPdf ? 'Generando...' : 'Reporte total'}
           </button>
         </div>
       </div>

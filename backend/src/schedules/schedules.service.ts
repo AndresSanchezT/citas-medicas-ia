@@ -76,7 +76,9 @@ export class SchedulesService {
     if (dto.horaInicio && dto.horaFin && toMinutes(dto.horaInicio) >= toMinutes(dto.horaFin)) {
       throw new BadRequestException('horaInicio debe ser anterior a horaFin');
     }
-    return this.prisma.doctorWeeklyAvailability.update({ where: { id }, data: dto });
+    const updated = await this.prisma.doctorWeeklyAvailability.update({ where: { id }, data: dto });
+    const cuposEliminados = await this.limpiarCuposObsoletos(existing.doctorId);
+    return { ...updated, cuposEliminados };
   }
 
   async deactivateAvailability(id: number) {
@@ -84,7 +86,41 @@ export class SchedulesService {
     if (!existing) {
       throw new NotFoundException(`Disponibilidad ${id} no encontrada`);
     }
-    return this.prisma.doctorWeeklyAvailability.update({ where: { id }, data: { activo: false } });
+    const updated = await this.prisma.doctorWeeklyAvailability.update({ where: { id }, data: { activo: false } });
+    const cuposEliminados = await this.limpiarCuposObsoletos(existing.doctorId);
+    return { ...updated, cuposEliminados };
+  }
+
+  // Al editar o desactivar un horario, los cupos DISPONIBLE ya generados con el patrón
+  // anterior quedaban huérfanos (generateSlots solo agrega, nunca borra) y seguían
+  // apareciendo como elegibles al crear una cita. Esto borra, para ese médico, los cupos
+  // futuros que ya no caen dentro de ninguna disponibilidad activa — nunca toca uno
+  // RESERVADO, para no romper una cita que ya existe sobre ese cupo.
+  private async limpiarCuposObsoletos(doctorId: number): Promise<number> {
+    const activas = await this.prisma.doctorWeeklyAvailability.findMany({
+      where: { doctorId, activo: true },
+    });
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const futurosDisponibles = await this.prisma.appointmentSlot.findMany({
+      where: { doctorId, estado: 'DISPONIBLE', fecha: { gte: today } },
+    });
+
+    const idsABorrar = futurosDisponibles
+      .filter((slot) => {
+        // fecha es @db.Date: Prisma la devuelve como medianoche UTC.
+        const diaSemana = slot.fecha.getUTCDay();
+        return !activas.some(
+          (a) => a.diaSemana === diaSemana && slot.horaInicio >= a.horaInicio && slot.horaInicio < a.horaFin,
+        );
+      })
+      .map((slot) => slot.id);
+
+    if (idsABorrar.length === 0) return 0;
+    await this.prisma.appointmentSlot.deleteMany({ where: { id: { in: idsABorrar } } });
+    return idsABorrar.length;
   }
 
   // ---------- Generación automática de cupos (HU-05) ----------

@@ -18,6 +18,23 @@ export class WaitlistService {
       throw new BadRequestException('Debe especificar al menos un médico o una especialidad');
     }
 
+    const patient = await this.prisma.patient.findUnique({ where: { id: dto.patientId } });
+    if (!patient) {
+      throw new NotFoundException(`Paciente ${dto.patientId} no encontrado`);
+    }
+    if (dto.doctorId) {
+      const doctor = await this.prisma.doctor.findUnique({ where: { id: dto.doctorId } });
+      if (!doctor) {
+        throw new NotFoundException(`Médico ${dto.doctorId} no encontrado`);
+      }
+    }
+    if (dto.specialtyId) {
+      const specialty = await this.prisma.specialty.findUnique({ where: { id: dto.specialtyId } });
+      if (!specialty) {
+        throw new NotFoundException(`Especialidad ${dto.specialtyId} no encontrada`);
+      }
+    }
+
     const now = new Date();
     const prediction = await this.predictionService.predictWaitTime({
       doctorId: dto.doctorId,

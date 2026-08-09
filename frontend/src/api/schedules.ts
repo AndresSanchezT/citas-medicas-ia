@@ -19,6 +19,9 @@ export interface WeeklyAvailability {
   horaFin: string;
   duracionSlotMinutos: number;
   activo: boolean;
+  // Solo viene en la respuesta de updateAvailability/deactivateAvailability: cuántos
+  // cupos DISPONIBLE del horario anterior se borraron por quedar obsoletos.
+  cuposEliminados?: number;
 }
 
 export async function fetchSlots(doctorId?: number, fecha?: string): Promise<AppointmentSlot[]> {
@@ -41,6 +44,19 @@ export async function createAvailability(input: {
   duracionSlotMinutos?: number;
 }): Promise<WeeklyAvailability> {
   const { data } = await apiClient.post<WeeklyAvailability>('/schedules/availability', input);
+  return data;
+}
+
+export async function updateAvailability(
+  id: number,
+  input: Partial<{
+    diaSemana: number;
+    horaInicio: string;
+    horaFin: string;
+    duracionSlotMinutos: number;
+  }>,
+): Promise<WeeklyAvailability> {
+  const { data } = await apiClient.patch<WeeklyAvailability>(`/schedules/availability/${id}`, input);
   return data;
 }
 

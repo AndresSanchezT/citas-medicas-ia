@@ -109,8 +109,22 @@ export class AlertsService {
   // avisarle al primero en la lista de espera de ese médico.
   @OnEvent('appointment.slot_freed')
   async handleSlotFreed(payload: AppointmentSlotFreedEvent) {
+    const doctor = await this.prisma.doctor.findUnique({
+      where: { id: payload.doctorId },
+      select: { specialtyId: true },
+    });
+
+    // Además de quien pidió ESTE médico puntual, también puede haber gente anotada solo por
+    // especialidad (sin médico específico) — a esos también hay que avisarles cuando se
+    // libera un cupo de cualquier médico de esa especialidad.
     const candidatos = await this.prisma.waitlistEntry.findMany({
-      where: { doctorId: payload.doctorId, estado: 'ESPERANDO' },
+      where: {
+        estado: 'ESPERANDO',
+        OR: [
+          { doctorId: payload.doctorId },
+          ...(doctor ? [{ doctorId: null, specialtyId: doctor.specialtyId }] : []),
+        ],
+      },
       orderBy: [{ prioridad: 'desc' }, { fechaSolicitud: 'asc' }],
       take: 1,
       include: { patient: true },

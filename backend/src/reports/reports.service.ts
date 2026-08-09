@@ -93,8 +93,12 @@ export class ReportsService {
         : new Date(new Date().setMonth(new Date().getMonth() - 12));
     const hasta = to ? new Date(to) : new Date();
 
-    const stats = await this.prisma.dailyStats.findMany({
-      where: { fecha: { gte: desde, lte: hasta } },
+    // Se cuenta directo de Appointment (en vez de la tabla DailyStats, que solo se agrega
+    // una vez al día con un cron a las 2am): así una cita recién completada aparece en el
+    // reporte al instante, sin esperar a la agregación nocturna del día siguiente.
+    const citas = await this.prisma.appointment.findMany({
+      where: { fecha: { gte: desde, lte: hasta }, estado: { in: ['COMPLETADA', 'NO_ASISTIO'] } },
+      select: { fecha: true, estado: true, waitTimeHistory: { select: { tiempoEsperaMinutosReal: true } } },
       orderBy: { fecha: 'asc' },
     });
 
@@ -111,17 +115,20 @@ export class ReportsService {
       { periodo: string; totalCompletadas: number; totalNoShow: number; sumaTiempo: number; conteoTiempo: number }
     >();
 
-    for (const stat of stats) {
-      const key = bucketKey(stat.fecha);
+    for (const cita of citas) {
+      const key = bucketKey(cita.fecha);
       if (!buckets.has(key)) {
         buckets.set(key, { periodo: key, totalCompletadas: 0, totalNoShow: 0, sumaTiempo: 0, conteoTiempo: 0 });
       }
       const bucket = buckets.get(key)!;
-      bucket.totalCompletadas += stat.totalCitasCompletadas;
-      bucket.totalNoShow += stat.totalNoShow;
-      if (stat.tiempoEsperaPromedioMinutos != null) {
-        bucket.sumaTiempo += stat.tiempoEsperaPromedioMinutos;
-        bucket.conteoTiempo += 1;
+      if (cita.estado === 'COMPLETADA') {
+        bucket.totalCompletadas += 1;
+        if (cita.waitTimeHistory) {
+          bucket.sumaTiempo += cita.waitTimeHistory.tiempoEsperaMinutosReal;
+          bucket.conteoTiempo += 1;
+        }
+      } else {
+        bucket.totalNoShow += 1;
       }
     }
 

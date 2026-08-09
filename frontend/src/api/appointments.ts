@@ -121,6 +121,11 @@ export async function rescheduleAppointment(id: number, newSlotId: number, motiv
   return data;
 }
 
+export async function iniciarTriaje(appointmentId: number): Promise<Triage> {
+  const { data } = await apiClient.patch<Triage>(`/appointments/${appointmentId}/triage/start`);
+  return data;
+}
+
 export async function upsertTriage(
   appointmentId: number,
   input: {

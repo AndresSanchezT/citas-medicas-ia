@@ -19,11 +19,22 @@ export interface ChartImage {
   height: number;
 }
 
+// Mismo agrupamiento que las pestañas de la pantalla de Reportes: permite exportar solo
+// la pestaña que se está viendo, o las 4 juntas ("Reporte total").
+export type SeccionReporte = 'general' | 'finanzas' | 'tiempos' | 'demanda';
+
 const PERIOD_LABEL: Record<'week' | 'month' | 'quarter' | 'year', string> = {
   week: 'Semanal',
   month: 'Mensual',
   quarter: 'Trimestral',
   year: 'Anual',
+};
+
+const SECCION_LABEL: Record<SeccionReporte, string> = {
+  general: 'General',
+  finanzas: 'Finanzas',
+  tiempos: 'Tiempos',
+  demanda: 'Demanda',
 };
 
 const HEADER_FILL: [number, number, number] = [42, 120, 214];
@@ -155,6 +166,8 @@ function formatSemana(iso: string): string {
 
 export function downloadManagementReportPdf(params: {
   period: 'week' | 'month' | 'quarter' | 'year';
+  // Qué pestañas incluir: ['general'] para "solo esta pestaña", o las 4 para "Reporte total".
+  secciones: SeccionReporte[];
   dashboard: DashboardPoint[];
   ranking: DoctorRankingItem[];
   occupancy: OccupancyPoint[];
@@ -173,118 +186,137 @@ export function downloadManagementReportPdf(params: {
     tiempoConsulta?: ChartImage;
   };
 }) {
-  const { period, dashboard, ranking, occupancy, waitTimeWeekly, costos, concurridas, citasPorEspecialidad, tiempoConsulta, charts } = params;
+  const {
+    period, secciones, dashboard, ranking, occupancy, waitTimeWeekly, costos, concurridas,
+    citasPorEspecialidad, tiempoConsulta, charts,
+  } = params;
+
+  const esTotal = secciones.length >= 4;
+  const subtitulo = esTotal
+    ? `Reporte gerencial total — periodo ${PERIOD_LABEL[period]}`
+    : `Reporte gerencial — ${secciones.map((s) => SECCION_LABEL[s]).join(', ')} — periodo ${PERIOD_LABEL[period]}`;
+
   const doc = new jsPDF() as DocWithAutoTable;
-  let y = addHeader(doc, `Reporte gerencial — periodo ${PERIOD_LABEL[period]}`);
+  let y = addHeader(doc, subtitulo);
 
-  y = addSectionTitle(doc, 'Tendencia de citas completadas / inasistencias', y);
-  y = addChartImage(doc, charts?.dashboard, y);
-  autoTable(doc, {
-    startY: y,
-    head: [['Periodo', 'Completadas', 'Inasistencias', '% Inasistencia', 'Espera prom. (min)']],
-    body: dashboard.map((d) => [
-      d.periodo,
-      d.totalCitasCompletadas,
-      d.totalNoShow,
-      `${d.porcentajeNoShow}%`,
-      d.tiempoEsperaPromedioMinutos ?? '—',
-    ]),
-    theme: 'striped',
-    headStyles: { fillColor: HEADER_FILL },
-    styles: { fontSize: 9 },
-  });
-  y = (doc.lastAutoTable?.finalY ?? y) + 12;
+  if (secciones.includes('general')) {
+    y = addSectionTitle(doc, 'Tendencia de citas completadas / inasistencias', y);
+    y = addChartImage(doc, charts?.dashboard, y);
+    autoTable(doc, {
+      startY: y,
+      head: [['Periodo', 'Completadas', 'Inasistencias', '% Inasistencia', 'Espera prom. (min)']],
+      body: dashboard.map((d) => [
+        d.periodo,
+        d.totalCitasCompletadas,
+        d.totalNoShow,
+        `${d.porcentajeNoShow}%`,
+        d.tiempoEsperaPromedioMinutos ?? '—',
+      ]),
+      theme: 'striped',
+      headStyles: { fillColor: HEADER_FILL },
+      styles: { fontSize: 9 },
+    });
+    y = (doc.lastAutoTable?.finalY ?? y) + 12;
+  }
 
-  y = addSectionTitle(doc, 'Ranking de médicos por pacientes atendidos', y);
-  y = addChartImage(doc, charts?.doctorRanking, y);
-  autoTable(doc, {
-    startY: y,
-    head: [['Médico', 'Especialidad', 'Pacientes atendidos']],
-    body: ranking.map((r) => [r.nombre, r.especialidad, r.totalPacientesAtendidos]),
-    theme: 'striped',
-    headStyles: { fillColor: HEADER_FILL },
-    styles: { fontSize: 9 },
-  });
-  y = (doc.lastAutoTable?.finalY ?? y) + 12;
+  if (secciones.includes('finanzas')) {
+    y = addSectionTitle(doc, 'Reporte de costos: ingresos por especialidad', y);
+    y = addChartImage(doc, charts?.costos, y);
+    autoTable(doc, {
+      startY: y,
+      head: [['Especialidad', 'Total citas pagadas', 'Ingreso total (S/)']],
+      body: costos.map((c) => [c.especialidad, c.totalCitas, c.ingresoTotal.toFixed(2)]),
+      theme: 'striped',
+      headStyles: { fillColor: HEADER_FILL },
+      styles: { fontSize: 9 },
+    });
+    y = (doc.lastAutoTable?.finalY ?? y) + 12;
 
-  y = addSectionTitle(doc, 'Ocupación por franja horaria y especialidad', y);
-  y = addChartImage(doc, charts?.occupancy, y);
-  const especialidadesOcupacion = [...new Set(occupancy.map((o) => o.especialidad))].sort((a, b) => a.localeCompare(b, 'es'));
-  y = addTablasPorEspecialidadEnPares(
-    doc,
-    especialidadesOcupacion,
-    ['Franja horaria', 'Pacientes'],
-    (especialidad) =>
-      occupancy
-        .filter((o) => o.especialidad === especialidad)
-        .sort((a, b) => a.franjaHoraria.localeCompare(b.franjaHoraria))
-        .map((o) => [o.franjaHoraria, o.totalPacientes]),
-    y,
-  );
+    y = addSectionTitle(doc, 'Especialidad más solicitada (total de citas)', y);
+    y = addChartImage(doc, charts?.citasPorEspecialidad, y);
+    autoTable(doc, {
+      startY: y,
+      head: [['Especialidad', 'Total citas']],
+      body: citasPorEspecialidad.map((c) => [c.especialidad, c.totalCitas]),
+      theme: 'striped',
+      headStyles: { fillColor: HEADER_FILL },
+      styles: { fontSize: 9 },
+    });
+    y = (doc.lastAutoTable?.finalY ?? y) + 12;
+  }
 
-  y = addSectionTitle(doc, 'Tiempo de espera semanal por especialidad', y);
-  y = addChartImage(doc, charts?.waitTimeWeekly, y);
-  const especialidadesEspera = [...new Set(waitTimeWeekly.map((w) => w.especialidad))].sort((a, b) =>
-    a.localeCompare(b, 'es'),
-  );
-  y = addTablasPorEspecialidadEnPares(
-    doc,
-    especialidadesEspera,
-    ['Semana', 'Espera prom. (min)'],
-    (especialidad) =>
-      waitTimeWeekly
-        .filter((w) => w.especialidad === especialidad)
-        .sort((a, b) => a.semana.localeCompare(b.semana))
-        .map((w) => [formatSemana(w.semana), w.tiempoEsperaPromedioMinutos]),
-    y,
-  );
+  if (secciones.includes('tiempos')) {
+    y = addSectionTitle(doc, 'Tiempo de espera semanal por especialidad', y);
+    y = addChartImage(doc, charts?.waitTimeWeekly, y);
+    const especialidadesEspera = [...new Set(waitTimeWeekly.map((w) => w.especialidad))].sort((a, b) =>
+      a.localeCompare(b, 'es'),
+    );
+    y = addTablasPorEspecialidadEnPares(
+      doc,
+      especialidadesEspera,
+      ['Semana', 'Espera prom. (min)'],
+      (especialidad) =>
+        waitTimeWeekly
+          .filter((w) => w.especialidad === especialidad)
+          .sort((a, b) => a.semana.localeCompare(b.semana))
+          .map((w) => [formatSemana(w.semana), w.tiempoEsperaPromedioMinutos]),
+      y,
+    );
 
-  y = addSectionTitle(doc, 'Reporte de costos: ingresos por especialidad', y);
-  y = addChartImage(doc, charts?.costos, y);
-  autoTable(doc, {
-    startY: y,
-    head: [['Especialidad', 'Total citas pagadas', 'Ingreso total (S/)']],
-    body: costos.map((c) => [c.especialidad, c.totalCitas, c.ingresoTotal.toFixed(2)]),
-    theme: 'striped',
-    headStyles: { fillColor: HEADER_FILL },
-    styles: { fontSize: 9 },
-  });
-  y = (doc.lastAutoTable?.finalY ?? y) + 12;
+    y = addSectionTitle(doc, 'Tiempo de consulta promedio por especialidad', y);
+    y = addChartImage(doc, charts?.tiempoConsulta, y);
+    autoTable(doc, {
+      startY: y,
+      head: [['Especialidad', 'Duración promedio (min)', 'Consultas consideradas']],
+      body: tiempoConsulta.map((t) => [t.especialidad, t.tiempoConsultaPromedioMinutos, t.totalConsultas]),
+      theme: 'striped',
+      headStyles: { fillColor: HEADER_FILL },
+      styles: { fontSize: 9 },
+    });
+    y = (doc.lastAutoTable?.finalY ?? y) + 12;
+  }
 
-  y = addSectionTitle(doc, 'Especialidad más solicitada (total de citas)', y);
-  y = addChartImage(doc, charts?.citasPorEspecialidad, y);
-  autoTable(doc, {
-    startY: y,
-    head: [['Especialidad', 'Total citas']],
-    body: citasPorEspecialidad.map((c) => [c.especialidad, c.totalCitas]),
-    theme: 'striped',
-    headStyles: { fillColor: HEADER_FILL },
-    styles: { fontSize: 9 },
-  });
-  y = (doc.lastAutoTable?.finalY ?? y) + 12;
+  if (secciones.includes('demanda')) {
+    y = addSectionTitle(doc, 'Ranking de médicos por pacientes atendidos', y);
+    y = addChartImage(doc, charts?.doctorRanking, y);
+    autoTable(doc, {
+      startY: y,
+      head: [['Médico', 'Especialidad', 'Pacientes atendidos']],
+      body: ranking.map((r) => [r.nombre, r.especialidad, r.totalPacientesAtendidos]),
+      theme: 'striped',
+      headStyles: { fillColor: HEADER_FILL },
+      styles: { fontSize: 9 },
+    });
+    y = (doc.lastAutoTable?.finalY ?? y) + 12;
 
-  y = addSectionTitle(doc, 'Tiempo de consulta promedio por especialidad', y);
-  y = addChartImage(doc, charts?.tiempoConsulta, y);
-  autoTable(doc, {
-    startY: y,
-    head: [['Especialidad', 'Duración promedio (min)', 'Consultas consideradas']],
-    body: tiempoConsulta.map((t) => [t.especialidad, t.tiempoConsultaPromedioMinutos, t.totalConsultas]),
-    theme: 'striped',
-    headStyles: { fillColor: HEADER_FILL },
-    styles: { fontSize: 9 },
-  });
-  y = (doc.lastAutoTable?.finalY ?? y) + 12;
+    y = addSectionTitle(doc, 'Ocupación por franja horaria y especialidad', y);
+    y = addChartImage(doc, charts?.occupancy, y);
+    const especialidadesOcupacion = [...new Set(occupancy.map((o) => o.especialidad))].sort((a, b) => a.localeCompare(b, 'es'));
+    y = addTablasPorEspecialidadEnPares(
+      doc,
+      especialidadesOcupacion,
+      ['Franja horaria', 'Pacientes'],
+      (especialidad) =>
+        occupancy
+          .filter((o) => o.especialidad === especialidad)
+          .sort((a, b) => a.franjaHoraria.localeCompare(b.franjaHoraria))
+          .map((o) => [o.franjaHoraria, o.totalPacientes]),
+      y,
+    );
 
-  y = addSectionTitle(doc, 'Citas más concurridas (día y franja horaria)', y);
-  autoTable(doc, {
-    startY: y,
-    head: [['Día', 'Franja horaria', 'Total citas']],
-    body: concurridas.map((c) => [c.dia, c.franjaHoraria, c.totalCitas]),
-    theme: 'striped',
-    headStyles: { fillColor: HEADER_FILL },
-    styles: { fontSize: 9 },
-  });
+    y = addSectionTitle(doc, 'Citas más concurridas (día y franja horaria)', y);
+    autoTable(doc, {
+      startY: y,
+      head: [['Día', 'Franja horaria', 'Total citas']],
+      body: concurridas.map((c) => [c.dia, c.franjaHoraria, c.totalCitas]),
+      theme: 'striped',
+      headStyles: { fillColor: HEADER_FILL },
+      styles: { fontSize: 9 },
+    });
+    y = (doc.lastAutoTable?.finalY ?? y) + 12;
+  }
 
   const fecha = new Date().toISOString().slice(0, 10);
-  doc.save(`reporte-gerencial-${period}-${fecha}.pdf`);
+  const nombreSeccion = esTotal ? 'total' : secciones.join('-');
+  doc.save(`reporte-gerencial-${nombreSeccion}-${period}-${fecha}.pdf`);
 }

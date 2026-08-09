@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
-import { upsertTriage, type Appointment, type Triage, type TriagePrioridad } from '../api/appointments';
+import { iniciarTriaje, upsertTriage, type Appointment, type Triage, type TriagePrioridad } from '../api/appointments';
 import { PRIORIDAD_LABEL } from './AppointmentActions';
 import { Modal } from './Modal';
 import * as ui from './ui';
@@ -62,6 +62,17 @@ export function TriageModal({ appointment, onClose }: TriageModalProps) {
   // "Iniciar triaje" marca el momento en que empieza a tomarse los signos vitales; el fin
   // lo pone el servidor al Guardar, así la duración no depende del reloj del navegador.
   const [inicioTriaje, setInicioTriaje] = useState<string | null>(existing?.inicioTriajeEn ?? null);
+
+  // Se guarda en el backend apenas se aprieta el botón (no solo en estado local), para que
+  // la hora de inicio no se pierda si cierran el modal sin llegar a guardar los signos
+  // vitales — al reabrirlo más tarde, `existing.inicioTriajeEn` ya viene con este valor.
+  const iniciarMutation = useMutation({
+    mutationFn: () => iniciarTriaje(appointment.id),
+    onSuccess: (triage) => {
+      queryClient.invalidateQueries({ queryKey: ['appointments'] });
+      setInicioTriaje(triage.inicioTriajeEn);
+    },
+  });
   // Al guardar, el modal ya no se cierra solo: se queda mostrando la confirmación y la
   // hora de inicio/fin reales que devolvió el servidor, hasta que el usuario lo cierre.
   const [guardado, setGuardado] = useState<Triage | null>(null);
@@ -139,13 +150,18 @@ export function TriageModal({ appointment, onClose }: TriageModalProps) {
         )}
         <button
           type="button"
-          disabled={!!inicioTriaje}
-          onClick={() => setInicioTriaje(new Date().toISOString())}
+          disabled={!!inicioTriaje || iniciarMutation.isPending}
+          onClick={() => iniciarMutation.mutate()}
           style={{ ...ui.secondaryButton, ...(inicioTriaje ? { opacity: 0.5 } : {}) }}
         >
-          {inicioTriaje ? '✓ Iniciado' : 'Iniciar triaje'}
+          {inicioTriaje ? '✓ Iniciado' : iniciarMutation.isPending ? 'Guardando...' : 'Iniciar triaje'}
         </button>
       </div>
+      {iniciarMutation.isError && (
+        <p style={{ color: 'var(--color-critical)', fontSize: 12.5, marginTop: -8, marginBottom: 12 }}>
+          No se pudo registrar el inicio del triaje. Intenta de nuevo.
+        </p>
+      )}
       <form onSubmit={handleSubmit((values) => saveMutation.mutate(values))}>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 1rem' }}>
           <div>
