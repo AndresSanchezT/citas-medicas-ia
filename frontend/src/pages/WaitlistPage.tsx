@@ -72,7 +72,11 @@ export function WaitlistPage() {
     enabled: !!assignDoctorId,
   });
 
-  const { register, handleSubmit, reset } = useForm<NewEntryForm>({ defaultValues: { prioridad: 'NORMAL' } });
+  const { register, handleSubmit, reset, watch, setValue } = useForm<NewEntryForm>({ defaultValues: { prioridad: 'NORMAL' } });
+  const especialidadElegida = watch('specialtyId');
+  const doctoresParaAnotar = especialidadElegida
+    ? doctors.filter((d) => d.specialtyId === Number(especialidadElegida))
+    : doctors;
 
   // Fuerza un re-render cada 30s para que la cuenta regresiva de "Tiempo estimado" avance
   // sin necesidad de recargar la página ni volver a pedir datos al backend.
@@ -226,19 +230,24 @@ export function WaitlistPage() {
               ))}
             </select>
 
-            <label>Médico (opcional si eliges especialidad)</label>
-            <select {...register('doctorId')} style={ui.input} defaultValue="">
-              <option value="">Cualquiera de la especialidad</option>
-              {doctors.map((d) => (
-                <option key={d.id} value={d.id}>{d.nombres} {d.apellidos}</option>
+            <label>Especialidad</label>
+            <select
+              {...register('specialtyId')}
+              onChange={(e) => { register('specialtyId').onChange(e); setValue('doctorId', ''); }}
+              style={ui.input}
+              defaultValue=""
+            >
+              <option value="">Cualquiera</option>
+              {specialties.map((s) => (
+                <option key={s.id} value={s.id}>{s.nombre}</option>
               ))}
             </select>
 
-            <label>Especialidad (si no eliges médico)</label>
-            <select {...register('specialtyId')} style={ui.input} defaultValue="">
-              <option value="">—</option>
-              {specialties.map((s) => (
-                <option key={s.id} value={s.id}>{s.nombre}</option>
+            <label>Médico (opcional)</label>
+            <select {...register('doctorId')} style={ui.input} defaultValue="">
+              <option value="">{especialidadElegida ? 'Cualquiera de la especialidad' : 'Cualquiera'}</option>
+              {doctoresParaAnotar.map((d) => (
+                <option key={d.id} value={d.id}>{d.nombres} {d.apellidos}</option>
               ))}
             </select>
 
