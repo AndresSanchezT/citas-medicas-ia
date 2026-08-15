@@ -233,7 +233,7 @@ export function WaitlistPage() {
             <label>Especialidad</label>
             <select
               {...register('specialtyId')}
-              onChange={(e) => { register('specialtyId').onChange(e); setValue('doctorId', ''); }}
+              onChange={(e) => { register('specialtyId').onChange(e); setValue('doctorId', undefined); }}
               style={ui.input}
               defaultValue=""
             >
@@ -251,7 +251,7 @@ export function WaitlistPage() {
                 // Si eligen el médico directamente (sin haber filtrado antes por especialidad),
                 // la especialidad se completa sola con la de ese médico.
                 const doctor = doctors.find((d) => d.id === Number(e.target.value));
-                if (doctor) setValue('specialtyId', String(doctor.specialtyId));
+                if (doctor) setValue('specialtyId', doctor.specialtyId);
               }}
               style={ui.input}
               defaultValue=""
