@@ -5,7 +5,11 @@ import { Role } from '../../generated/prisma/enums';
 import type { AuthenticatedUser } from '../auth/decorators/current-user.decorator';
 import { PrismaService } from '../prisma/prisma.service';
 import { EmailService } from '../common/email.service';
-import type { AppointmentSlotFreedEvent, AppointmentNoShowEvent } from '../appointments/appointments.service';
+import type {
+  AppointmentSlotFreedEvent,
+  AppointmentNoShowEvent,
+  AppointmentCancelledEvent,
+} from '../appointments/appointments.service';
 
 const UMBRAL_INASISTENCIAS_FRECUENTES = 3;
 const DIAS_VENTANA_INASISTENCIAS = 60;
@@ -186,10 +190,39 @@ export class AlertsService {
         destinatarioTipo: 'ADMIN',
         destinatarioId: payload.patientId,
         referenciaEntidadId: payload.patientId,
-        mensaje: `El paciente ${payload.patientId} acumula ${totalNoShows} inasistencias en los últimos ${DIAS_VENTANA_INASISTENCIAS} días.`,
+        mensaje: `${payload.patientNombre} acumula ${totalNoShows} inasistencias en los últimos ${DIAS_VENTANA_INASISTENCIAS} días.`,
       });
       this.logger.log(`Alerta de inasistencia frecuente generada para el paciente ${payload.patientId}`);
     }
+  }
+
+  // A diferencia de INASISTENCIA_FRECUENTE (que solo avisa al superar un umbral), esta se
+  // genera SIEMPRE que una cita se marca como no-asistida, con el detalle puntual de esa
+  // falta — para que recepción/administración tengan un registro inmediato de cada caso.
+  @OnEvent('appointment.no_show')
+  async handleAppointmentNoShowAlert(payload: AppointmentNoShowEvent) {
+    const fecha = payload.fecha.toISOString().split('T')[0];
+    await this.crearAlerta({
+      tipo: 'CITA_NO_ASISTIO',
+      destinatarioTipo: 'ADMIN',
+      destinatarioId: payload.patientId,
+      referenciaEntidadId: payload.appointmentId,
+      mensaje: `${payload.patientNombre} no asistió a su cita de ${payload.especialidad} con ${payload.doctorNombre}, el ${fecha} a las ${payload.horaInicio}.`,
+    });
+  }
+
+  // Se genera en cada cancelación puntual (con o sin política de pago de por medio), con
+  // el detalle de paciente, cupo, especialidad y médico.
+  @OnEvent('appointment.cancelled')
+  async handleAppointmentCancelled(payload: AppointmentCancelledEvent) {
+    const fecha = payload.fecha.toISOString().split('T')[0];
+    await this.crearAlerta({
+      tipo: 'CITA_CANCELADA',
+      destinatarioTipo: 'ADMIN',
+      destinatarioId: payload.patientId,
+      referenciaEntidadId: payload.appointmentId,
+      mensaje: `${payload.patientNombre} canceló su cita de ${payload.especialidad} con ${payload.doctorNombre}, el ${fecha} a las ${payload.horaInicio}.`,
+    });
   }
 
   // ---------- Tareas programadas (proactivas) ----------

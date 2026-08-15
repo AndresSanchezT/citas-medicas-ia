@@ -38,6 +38,25 @@ export interface AppointmentNoShowEvent {
   appointmentId: number;
   patientId: number;
   doctorId: number;
+  patientNombre: string;
+  doctorNombre: string;
+  especialidad: string;
+  fecha: Date;
+  horaInicio: string;
+}
+
+// Se emite en cada cancelación puntual (no solo cuando se detecta un patrón), para dejar
+// registro inmediato de quién, cuándo y con qué médico — no depende de que se junte un
+// umbral de inasistencias como la alerta de INASISTENCIA_FRECUENTE.
+export interface AppointmentCancelledEvent {
+  appointmentId: number;
+  patientId: number;
+  patientNombre: string;
+  doctorId: number;
+  doctorNombre: string;
+  especialidad: string;
+  fecha: Date;
+  horaInicio: string;
 }
 
 @Injectable()
@@ -239,19 +258,22 @@ export class AppointmentsService {
   }
 
   // Política "reprogramación única con plazo de 24h": se evalúa igual sea por cancelación
-  // o por inasistencia. Si la cita no está pagada, no hay nada que resolver. Si está pagada
-  // y todavía no había usado su oportunidad, esta falla la consume: el pago queda a salvo
-  // y se abre una ventana de 24h para reprogramar (ver reschedule()). Si ya la había usado
-  // (esta es la segunda falla, o el plazo anterior ya había vencido), se pierde el pago.
+  // o por inasistencia, y aplica tanto a citas pagadas como no pagadas — toda cita tiene
+  // derecho a una sola reprogramación de recuperación. Si todavía no había usado esa
+  // oportunidad, esta falla la consume y se abre una ventana de 24h para reprogramar (ver
+  // reschedule()); si está pagada, además el pago queda a salvo (reembolso). Si ya la había
+  // usado (segunda falla, o el plazo anterior venció), ya no hay más ventana; si estaba
+  // pagada, ahí sí se pierde el pago (en una no pagada no hay nada que perder).
   private resolverPoliticaFalla(appointment: { pagado: boolean; reprogramacionGratuitaUsada: boolean }) {
-    if (!appointment.pagado) {
-      return { reembolso: 'NO_APLICA' as const, reprogramacionGratuitaUsada: appointment.reprogramacionGratuitaUsada, plazoReprogramacionHasta: null as Date | null };
-    }
     if (appointment.reprogramacionGratuitaUsada) {
-      return { reembolso: 'PERDIDO' as const, reprogramacionGratuitaUsada: true, plazoReprogramacionHasta: null as Date | null };
+      return {
+        reembolso: appointment.pagado ? ('PERDIDO' as const) : ('NO_APLICA' as const),
+        reprogramacionGratuitaUsada: true,
+        plazoReprogramacionHasta: null as Date | null,
+      };
     }
     return {
-      reembolso: 'REEMBOLSADO' as const,
+      reembolso: appointment.pagado ? ('REEMBOLSADO' as const) : ('NO_APLICA' as const),
       reprogramacionGratuitaUsada: true,
       plazoReprogramacionHasta: new Date(Date.now() + 24 * 60 * 60 * 1000),
     };
@@ -287,6 +309,17 @@ export class AppointmentsService {
       } satisfies AppointmentSlotFreedEvent);
     }
 
+    this.eventEmitter.emit('appointment.cancelled', {
+      appointmentId: appointment.id,
+      patientId: appointment.patientId,
+      patientNombre: `${appointment.patient.nombres} ${appointment.patient.apellidos}`,
+      doctorId: appointment.doctorId,
+      doctorNombre: `${appointment.doctor.nombres} ${appointment.doctor.apellidos}`,
+      especialidad: appointment.doctor.specialty.nombre,
+      fecha: appointment.fecha,
+      horaInicio: appointment.horaInicio,
+    } satisfies AppointmentCancelledEvent);
+
     return updated;
   }
 
@@ -311,6 +344,11 @@ export class AppointmentsService {
       appointmentId: appointment.id,
       patientId: appointment.patientId,
       doctorId: appointment.doctorId,
+      patientNombre: `${appointment.patient.nombres} ${appointment.patient.apellidos}`,
+      doctorNombre: `${appointment.doctor.nombres} ${appointment.doctor.apellidos}`,
+      especialidad: appointment.doctor.specialty.nombre,
+      fecha: appointment.fecha,
+      horaInicio: appointment.horaInicio,
     } satisfies AppointmentNoShowEvent);
 
     if (appointment.slotId) {
@@ -330,12 +368,10 @@ export class AppointmentsService {
   // la falla anterior le dejó el pago a salvo y todavía está dentro de su ventana de 24h.
   private tieneDerechoARecuperar(appointment: {
     estado: string;
-    reembolso: string;
     plazoReprogramacionHasta: Date | null;
   }): boolean {
     return (
       (appointment.estado === 'CANCELADA' || appointment.estado === 'NO_ASISTIO') &&
-      appointment.reembolso === 'REEMBOLSADO' &&
       appointment.plazoReprogramacionHasta != null &&
       appointment.plazoReprogramacionHasta.getTime() >= Date.now()
     );

@@ -17,8 +17,11 @@ export function ResultadoPoliticaModal({ appointment, onClose }: ResultadoPoliti
   const plazo = appointment.plazoReprogramacionHasta
     ? new Date(appointment.plazoReprogramacionHasta).toLocaleString('es-PE', { dateStyle: 'short', timeStyle: 'short' })
     : null;
+  // Aunque no haya pago de por medio, toda cita tiene derecho a una sola reprogramación de
+  // recuperación dentro de 24h — este modal también informa ese resultado.
+  const puedeReprogramar = !!plazo;
 
-  const tono = seReembolsa ? 'good' : sePierde ? 'critical' : 'neutral';
+  const tono = seReembolsa || (!appointment.pagado && puedeReprogramar) ? 'good' : sePierde ? 'critical' : 'neutral';
   const colores = {
     good: { fg: 'var(--color-good)', bg: 'var(--color-good-tint)' },
     critical: { fg: 'var(--color-critical)', bg: 'var(--color-critical-tint)' },
@@ -45,19 +48,24 @@ export function ResultadoPoliticaModal({ appointment, onClose }: ResultadoPoliti
             fontSize: 17, fontWeight: 700,
           }}
         >
-          {seReembolsa ? '✓' : sePierde ? '!' : 'i'}
+          {seReembolsa || (!appointment.pagado && puedeReprogramar) ? '✓' : sePierde ? '!' : 'i'}
         </div>
         <div>
           <div style={{ fontWeight: 700, color: colores.fg, marginBottom: 4 }}>
             {seReembolsa && `${monto} queda a salvo`}
             {sePierde && `Se perdió ${monto}`}
-            {!seReembolsa && !sePierde && 'Esta cita no tenía pago registrado'}
+            {!appointment.pagado && puedeReprogramar && 'Puede reprogramarse dentro de 24 horas'}
+            {!appointment.pagado && !puedeReprogramar && 'Ya no se puede reprogramar'}
           </div>
           <div style={{ fontSize: 13.5, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
             {seReembolsa && plazo && (
               <>El paciente tiene hasta el <strong>{plazo}</strong> (24 horas) para reprogramar sin costo.</>
             )}
             {sePierde && 'Ya había usado su única oportunidad de reprogramación gratuita; no corresponde reembolso ni una nueva cita de recuperación.'}
+            {!appointment.pagado && puedeReprogramar && plazo && (
+              <>Esta cita no tenía pago registrado. El paciente tiene hasta el <strong>{plazo}</strong> (24 horas) para reprogramarla.</>
+            )}
+            {!appointment.pagado && !puedeReprogramar && 'Esta cita no tenía pago registrado. Ya había usado su única oportunidad de reprogramación; no se puede reprogramar de nuevo.'}
           </div>
         </div>
       </div>

@@ -49,8 +49,9 @@ export function ReagendarModal({ appointment, onClose }: ReagendarModalProps) {
     >
       {esRecuperacion && (
         <p style={{ color: 'var(--text-secondary)', fontSize: 13, marginBottom: 12 }}>
-          Esta cita quedó {appointment.estado === 'NO_ASISTIO' ? 'como no-asistida' : 'cancelada'}, pero el pago
-          sigue a salvo dentro del plazo de 24 horas: elegí el nuevo horario para reprogramarla.
+          Esta cita quedó {appointment.estado === 'NO_ASISTIO' ? 'como no-asistida' : 'cancelada'}
+          {appointment.pagado ? ', pero el pago sigue a salvo dentro del plazo de 24 horas' : ''}: elegí el
+          nuevo horario para reprogramarla.
         </p>
       )}
       <p style={{ color: 'var(--text-secondary)', fontSize: 13, marginBottom: 12 }}>

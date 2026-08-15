@@ -9,6 +9,8 @@ const TIPO_LABEL: Record<string, string> = {
   INASISTENCIA_FRECUENTE: 'Inasistencia frecuente',
   LISTA_ESPERA_LARGA: 'Lista de espera larga',
   SLOT_LIBRE_DISPONIBLE: 'Cupo disponible',
+  CITA_CANCELADA: 'Cita cancelada',
+  CITA_NO_ASISTIO: 'Inasistencia a cita',
 };
 
 export function AlertsPage() {

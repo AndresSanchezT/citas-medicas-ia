@@ -28,13 +28,16 @@ const PUEDE_RECEPCIONAR: Usuario['rol'][] = ['ADMIN', 'RECEPCIONISTA'];
 const PUEDE_ATENDER: Usuario['rol'][] = ['ADMIN', 'MEDICO'];
 const PUEDE_CANCELAR_O_NOSHOW: Usuario['rol'][] = ['ADMIN', 'RECEPCIONISTA', 'MEDICO'];
 
-// Política "reprogramación única con plazo de 24h": avisa de antemano si el pago se
-// reembolsa o se pierde, y que tendrá 24h para reprogramar si corresponde (ver
-// AppointmentsService.resolverPoliticaFalla en el backend, que aplica la misma regla
-// tanto a cancelaciones como a inasistencias).
+// Política "reprogramación única con plazo de 24h": aplica a toda cita, pagada o no —
+// avisa de antemano si el pago se reembolsa o se pierde (cuando corresponde), y que
+// tendrá 24h para reprogramar si es su primera falla (ver AppointmentsService.
+// resolverPoliticaFalla en el backend, que aplica la misma regla tanto a cancelaciones
+// como a inasistencias).
 function confirmarCancelacion(appointment: Appointment): boolean {
   if (!appointment.pagado) {
-    return window.confirm('¿Cancelar esta cita?');
+    return appointment.reprogramacionGratuitaUsada
+      ? window.confirm('Esta cita ya usó su única oportunidad de reprogramación. Al cancelarla, ya no podrá reprogramarse de nuevo. ¿Confirmar cancelación?')
+      : window.confirm('¿Cancelar esta cita? Al ser su primera falla, tendrá 24 horas para reprogramarla.');
   }
   const monto = appointment.monto != null ? `S/ ${appointment.monto}` : 'el pago';
   const mensaje = appointment.reprogramacionGratuitaUsada
@@ -43,11 +46,11 @@ function confirmarCancelacion(appointment: Appointment): boolean {
   return window.confirm(mensaje);
 }
 
-// La cita ya cancelada/no-asistida solo puede reprogramarse de nuevo si esa falla le dejó
-// el pago a salvo y el plazo de 24h todavía no venció (ver tieneDerechoARecuperar backend).
+// La cita ya cancelada/no-asistida solo puede reprogramarse de nuevo si todavía no había
+// usado esa oportunidad y el plazo de 24h no venció — sin importar si estaba pagada (ver
+// tieneDerechoARecuperar en el backend).
 function puedeRecuperar(appointment: Appointment): boolean {
   return (
-    appointment.reembolso === 'REEMBOLSADO' &&
     !!appointment.plazoReprogramacionHasta &&
     new Date(appointment.plazoReprogramacionHasta).getTime() >= Date.now()
   );
