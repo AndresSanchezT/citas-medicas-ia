@@ -8,6 +8,7 @@ import type {
   DoctorRankingItem,
   OccupancyPoint,
   TiempoConsultaPorEspecialidad,
+  TiempoTotalCitaPorEspecialidad,
   TiempoTriajePorEspecialidad,
   WaitTimeWeeklyPoint,
 } from '../api/reports';
@@ -178,6 +179,7 @@ export function downloadManagementReportPdf(params: {
   citasPorEspecialidad: CitaPorEspecialidad[];
   tiempoConsulta: TiempoConsultaPorEspecialidad[];
   tiempoTriaje: TiempoTriajePorEspecialidad[];
+  tiempoTotal: TiempoTotalCitaPorEspecialidad[];
   charts?: {
     dashboard?: ChartImage;
     doctorRanking?: ChartImage;
@@ -187,11 +189,12 @@ export function downloadManagementReportPdf(params: {
     citasPorEspecialidad?: ChartImage;
     tiempoConsulta?: ChartImage;
     tiempoTriaje?: ChartImage;
+    tiempoTotal?: ChartImage;
   };
 }) {
   const {
     period, secciones, dashboard, ranking, occupancy, waitTimeWeekly, costos, concurridas,
-    citasPorEspecialidad, tiempoConsulta, tiempoTriaje, charts,
+    citasPorEspecialidad, tiempoConsulta, tiempoTriaje, tiempoTotal, charts,
   } = params;
 
   const esTotal = secciones.length >= 4;
@@ -284,6 +287,18 @@ export function downloadManagementReportPdf(params: {
       startY: y,
       head: [['Especialidad', 'Duración promedio (min)', 'Triajes considerados']],
       body: tiempoTriaje.map((t) => [t.especialidad, t.tiempoTriajePromedioMinutos, t.totalTriajes]),
+      theme: 'striped',
+      headStyles: { fillColor: HEADER_FILL },
+      styles: { fontSize: 9 },
+    });
+    y = (doc.lastAutoTable?.finalY ?? y) + 12;
+
+    y = addSectionTitle(doc, 'Tiempo total de cita promedio por especialidad (check-in a fin de atención)', y);
+    y = addChartImage(doc, charts?.tiempoTotal, y);
+    autoTable(doc, {
+      startY: y,
+      head: [['Especialidad', 'Duración total promedio (min)', 'Citas consideradas']],
+      body: tiempoTotal.map((t) => [t.especialidad, t.tiempoTotalPromedioMinutos, t.totalCitas]),
       theme: 'striped',
       headStyles: { fillColor: HEADER_FILL },
       styles: { fontSize: 9 },

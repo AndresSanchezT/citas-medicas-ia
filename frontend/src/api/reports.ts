@@ -113,6 +113,19 @@ export async function getTiempoConsultaPorEspecialidad(): Promise<TiempoConsulta
   return data;
 }
 
+export interface TiempoTotalCitaPorEspecialidad {
+  especialidad: string;
+  tiempoTotalPromedioMinutos: number;
+  totalCitas: number;
+}
+
+// Desde el check-in del paciente hasta que la cita se marca como completada — espera y
+// consulta juntas, a diferencia de TiempoConsultaPorEspecialidad (solo la consulta).
+export async function getTiempoTotalCitaPorEspecialidad(): Promise<TiempoTotalCitaPorEspecialidad[]> {
+  const { data } = await apiClient.get<TiempoTotalCitaPorEspecialidad[]>('/reports/tiempo-total-cita-por-especialidad');
+  return data;
+}
+
 export interface TiempoTriajePorEspecialidad {
   especialidad: string;
   tiempoTriajePromedioMinutos: number;

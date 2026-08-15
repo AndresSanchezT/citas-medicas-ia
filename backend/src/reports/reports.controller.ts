@@ -68,6 +68,12 @@ export class ReportsController {
     return this.reportsService.getTiempoConsultaPorEspecialidad(from, to);
   }
 
+  @Get('tiempo-total-cita-por-especialidad')
+  @Roles(Role.ADMIN)
+  getTiempoTotalCitaPorEspecialidad(@Query('from') from?: string, @Query('to') to?: string) {
+    return this.reportsService.getTiempoTotalCitaPorEspecialidad(from, to);
+  }
+
   @Get('tiempo-triaje-por-especialidad')
   @Roles(Role.ADMIN)
   getTiempoTriajePorEspecialidad(@Query('from') from?: string, @Query('to') to?: string) {

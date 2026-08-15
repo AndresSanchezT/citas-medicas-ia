@@ -418,6 +418,47 @@ export class ReportsService {
       .sort((a, b) => b.tiempoConsultaPromedioMinutos - a.tiempoConsultaPromedioMinutos);
   }
 
+  // ---------- Tiempo total de cita promedio por especialidad (desde el check-in del
+  // paciente hasta que se marca la cita como completada — espera + consulta juntas) ----------
+
+  async getTiempoTotalCitaPorEspecialidad(from?: string, to?: string) {
+    const desde = from ? new Date(from) : new Date(new Date().setMonth(new Date().getMonth() - 12));
+    const hasta = to ? new Date(to) : new Date();
+
+    const citas = await this.prisma.appointment.findMany({
+      where: {
+        estado: 'COMPLETADA',
+        horaLlegadaReal: { not: null },
+        horaAtencionFinReal: { not: null },
+        fecha: { gte: desde, lte: hasta },
+      },
+      select: {
+        horaLlegadaReal: true,
+        horaAtencionFinReal: true,
+        doctor: { select: { specialty: { select: { nombre: true } } } },
+      },
+    });
+
+    const porEspecialidad = new Map<string, { suma: number; conteo: number }>();
+    for (const cita of citas) {
+      const minutos = (cita.horaAtencionFinReal!.getTime() - cita.horaLlegadaReal!.getTime()) / 60000;
+      if (minutos < 0) continue;
+      const especialidad = cita.doctor.specialty.nombre;
+      if (!porEspecialidad.has(especialidad)) porEspecialidad.set(especialidad, { suma: 0, conteo: 0 });
+      const bucket = porEspecialidad.get(especialidad)!;
+      bucket.suma += minutos;
+      bucket.conteo += 1;
+    }
+
+    return Array.from(porEspecialidad.entries())
+      .map(([especialidad, { suma, conteo }]) => ({
+        especialidad,
+        tiempoTotalPromedioMinutos: Math.round((suma / conteo) * 10) / 10,
+        totalCitas: conteo,
+      }))
+      .sort((a, b) => b.tiempoTotalPromedioMinutos - a.tiempoTotalPromedioMinutos);
+  }
+
   // ---------- Tiempo de triaje promedio por especialidad (desde "Iniciar triaje" hasta que
   // se guardan los signos vitales, ver TriageModal/appointments.service.ts) ----------
 
