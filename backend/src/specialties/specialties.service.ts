@@ -16,7 +16,7 @@ export class SpecialtiesService {
   }
 
   findAll() {
-    return this.prisma.specialty.findMany({ orderBy: { nombre: 'asc' } });
+    return this.prisma.specialty.findMany({ where: { activo: true }, orderBy: { nombre: 'asc' } });
   }
 
   async findOne(id: number) {
@@ -28,7 +28,18 @@ export class SpecialtiesService {
   }
 
   async update(id: number, dto: UpdateSpecialtyDto) {
-    await this.findOne(id);
+    const specialty = await this.findOne(id);
+    if (dto.nombre && dto.nombre !== specialty.nombre) {
+      const existing = await this.prisma.specialty.findUnique({ where: { nombre: dto.nombre } });
+      if (existing) {
+        throw new ConflictException('Ya existe una especialidad con ese nombre');
+      }
+    }
     return this.prisma.specialty.update({ where: { id }, data: dto });
+  }
+
+  async deactivate(id: number) {
+    await this.findOne(id);
+    return this.prisma.specialty.update({ where: { id }, data: { activo: false } });
   }
 }

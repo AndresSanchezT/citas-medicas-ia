@@ -103,6 +103,7 @@ model Specialty {
   id             Int      @id @default(autoincrement())
   nombre         String   @unique @db.VarChar(100)
   precioConsulta Float?   @map("precio_consulta")
+  activo         Boolean  @default(true)
   doctors Doctor[]
   waitlistEntries WaitlistEntry[]
 

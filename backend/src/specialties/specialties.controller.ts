@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, ParseIntPipe, Patch, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, ParseIntPipe, Patch, Post, UseGuards } from '@nestjs/common';
 import { Role } from '../../generated/prisma/enums';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -34,5 +34,11 @@ export class SpecialtiesController {
   @Roles(Role.ADMIN)
   update(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateSpecialtyDto) {
     return this.specialtiesService.update(id, dto);
+  }
+
+  @Delete(':id')
+  @Roles(Role.ADMIN)
+  deactivate(@Param('id', ParseIntPipe) id: number) {
+    return this.specialtiesService.deactivate(id);
   }
 }
