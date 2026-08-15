@@ -1,6 +1,8 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { OnEvent } from '@nestjs/event-emitter';
+import { Role } from '../../generated/prisma/enums';
+import type { AuthenticatedUser } from '../auth/decorators/current-user.decorator';
 import { PrismaService } from '../prisma/prisma.service';
 import { EmailService } from '../common/email.service';
 import type { AppointmentSlotFreedEvent, AppointmentNoShowEvent } from '../appointments/appointments.service';
@@ -51,8 +53,15 @@ export class AlertsService {
     });
   }
 
-  async getResumen(filters: { fechaDesde?: string; fechaHasta?: string }) {
+  async getResumen(filters: {
+    fechaDesde?: string;
+    fechaHasta?: string;
+    destinatarioTipo?: string;
+    destinatarioId?: number;
+  }) {
     const where = {
+      ...(filters.destinatarioTipo ? { destinatarioTipo: filters.destinatarioTipo as any } : {}),
+      ...(filters.destinatarioId ? { destinatarioId: filters.destinatarioId } : {}),
       ...(filters.fechaDesde || filters.fechaHasta
         ? {
             fechaGeneracion: {
@@ -78,7 +87,16 @@ export class AlertsService {
     };
   }
 
-  markAsRead(id: number) {
+  async markAsRead(id: number, user: AuthenticatedUser) {
+    const alert = await this.prisma.alert.findUnique({ where: { id } });
+    if (!alert) {
+      throw new NotFoundException(`Alerta ${id} no encontrada`);
+    }
+    // Un médico solo puede marcar como leídas las alertas dirigidas a él mismo, aunque
+    // conozca el id de una alerta ajena (ver mismo criterio que findAll de este servicio).
+    if (user.rol === Role.MEDICO && (alert.destinatarioTipo !== 'MEDICO' || alert.destinatarioId !== user.doctorId)) {
+      throw new ForbiddenException('No puedes gestionar alertas que no te corresponden');
+    }
     return this.prisma.alert.update({ where: { id }, data: { estado: 'LEIDA' } });
   }
 
