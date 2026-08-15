@@ -63,8 +63,8 @@ export function WaitlistPage() {
     queryFn: () => fetchWaitlist(filtroEstado || undefined),
   });
   const { data: ranking = [] } = useQuery({ queryKey: ['demand-ranking'], queryFn: fetchDemandRanking });
-  const { data: patients = [] } = useQuery({ queryKey: ['patients', ''], queryFn: () => fetchPatients() });
-  const { data: doctors = [] } = useQuery({ queryKey: ['doctors'], queryFn: fetchDoctors });
+  const { data: patients = [] } = useQuery({ queryKey: ['patients', ''], queryFn: () => fetchPatients(), select: (r) => r.data });
+  const { data: doctors = [] } = useQuery({ queryKey: ['doctors'], queryFn: () => fetchDoctors(), select: (r) => r.data });
   const { data: specialties = [] } = useQuery({ queryKey: ['specialties'], queryFn: fetchSpecialties });
   const { data: slotsForAssign = [] } = useQuery({
     queryKey: ['available-slots', assignDoctorId],
@@ -244,7 +244,18 @@ export function WaitlistPage() {
             </select>
 
             <label>Médico (opcional)</label>
-            <select {...register('doctorId')} style={ui.input} defaultValue="">
+            <select
+              {...register('doctorId')}
+              onChange={(e) => {
+                register('doctorId').onChange(e);
+                // Si eligen el médico directamente (sin haber filtrado antes por especialidad),
+                // la especialidad se completa sola con la de ese médico.
+                const doctor = doctors.find((d) => d.id === Number(e.target.value));
+                if (doctor) setValue('specialtyId', String(doctor.specialtyId));
+              }}
+              style={ui.input}
+              defaultValue=""
+            >
               <option value="">{especialidadElegida ? 'Cualquiera de la especialidad' : 'Cualquiera'}</option>
               {doctoresParaAnotar.map((d) => (
                 <option key={d.id} value={d.id}>{d.nombres} {d.apellidos}</option>
