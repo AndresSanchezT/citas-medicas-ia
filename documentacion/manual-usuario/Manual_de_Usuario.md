@@ -3,6 +3,15 @@
 
 Este manual explica cómo usar el sistema día a día: agendar citas, hacer triaje, gestionar médicos y pacientes, la lista de espera, las alertas y los reportes gerenciales. Está organizado por rol, porque cada usuario ve un menú distinto según lo que le corresponde hacer.
 
+### Novedades de esta actualización
+
+- **Especialidades** (sección 4): el Administrador ahora puede **crear**, **editar** (nombre y precio juntos) y **desactivar** especialidades, no solo cambiar el precio.
+- **Lista de espera** (sección 7): al anotar un paciente, el formulario ahora pide primero la **Especialidad** y recién después el **Médico** — el combo de médico se filtra automáticamente para mostrar solo los de la especialidad elegida.
+- **Médicos** (sección 3): **Horarios** y **Descansos/Vacaciones** pasaron a ser de solo consulta para Recepcionista y Médico — únicamente el Administrador puede crearlos, editarlos o desactivarlos.
+- **Alertas** (sección 8): un médico ahora ve solo las alertas dirigidas a él; ya no ve las del administrador ni las de otros pacientes.
+- **Reportes** (sección 10): se agregó el indicador y el gráfico de **Tiempo de triaje promedio por especialidad** en la pestaña Tiempos.
+- **General**: los formularios emergentes (crear, editar) ahora se pueden **arrastrar** tomando el título y moverlos a otra parte de la pantalla, por si tapan algo detrás que necesitas ver.
+
 ---
 
 ## 1. Ingreso al sistema
@@ -51,11 +60,11 @@ Campos:
 
 ## 3. Médicos
 
-Sección **Médicos** — Administrador y Recepcionista pueden gestionar; el Médico solo puede consultar la lista.
+Sección **Médicos** — el Administrador gestiona todo (registrar médicos, configurar horarios, registrar descansos); Recepcionista y Médico solo pueden consultar la lista y ver los horarios, sin poder editarlos.
 
 ![Lista de médicos](img/08_medicos_lista.png)
 
-Por cada médico hay cinco acciones: **Horarios**, **Descansos/Vacaciones**, **Editar**, **Desactivar**.
+Por cada médico hay cuatro acciones, aunque no todas las ve cualquier rol: **Horarios** (todos los roles, pero solo el Administrador puede editar dentro de ese modal), **Descansos/Vacaciones**, **Editar** y **Desactivar** (estas tres últimas, solo Administrador).
 
 ### Registrar un médico nuevo
 
@@ -70,7 +79,7 @@ Además de los datos personales (mismo esquema de **Tipo de documento** que en P
 
 ### Configurar el horario semanal de un médico
 
-Botón **Horarios** en la fila del médico.
+Botón **Horarios** en la fila del médico — visible para los tres roles, pero solo el Administrador ve los controles para editarlo.
 
 ![Modal de horarios del médico](img/10_medicos_horario.png)
 
@@ -81,9 +90,11 @@ Botón **Horarios** en la fila del médico.
 
 > **Importante:** si editas o desactivas un horario, el sistema elimina automáticamente los cupos futuros que ya no correspondan al nuevo horario (por ejemplo, si el médico deja de atender los martes, los cupos de martes que aún estaban libres desaparecen). Los cupos que ya tienen una cita reservada **nunca** se tocan, y los cupos de fechas pasadas tampoco se modifican.
 
+Si entras como Recepcionista o Médico, el modal muestra la misma tabla de horarios pero con el aviso "Solo el administrador puede crear, editar o desactivar horarios. Esta vista es de solo consulta." — no aparecen el formulario ni los botones Editar/Desactivar/Generar cupos.
+
 ### Descansos y vacaciones
 
-Botón **Descansos/Vacaciones** en la fila del médico — permite registrar un rango de fechas en el que el médico no atiende (vacaciones, licencia, etc.), independientemente de su horario semanal habitual.
+Botón **Descansos/Vacaciones** — solo lo ve el Administrador. Permite registrar un rango de fechas en el que el médico no atiende (vacaciones, licencia, etc.), independientemente de su horario semanal habitual.
 
 ---
 
@@ -93,7 +104,23 @@ Sección **Especialidades** — solo para el Administrador.
 
 ![Lista de especialidades](img/11_especialidades.png)
 
-Cada especialidad tiene un **precio de consulta** asociado, que se usa como monto sugerido al agendar una cita paga y en los reportes financieros (ingresos y costos por especialidad). El precio se puede editar en cualquier momento; el cambio no afecta las citas ya registradas, solo las nuevas.
+Cada especialidad tiene un **precio de consulta** asociado, que se usa como monto sugerido al agendar una cita paga y en los reportes financieros (ingresos y costos por especialidad).
+
+### Crear una especialidad nueva
+
+Botón **+ Nueva especialidad**.
+
+![Formulario de nueva especialidad](img/11b_especialidades_nueva.png)
+
+Solo pide el **Nombre** — no se permite repetir un nombre ya existente. (También se puede crear una especialidad al vuelo desde el formulario de "Nuevo médico", con el campo "Nueva especialidad...".)
+
+### Editar o desactivar una especialidad
+
+Botón **Editar** en la fila — permite cambiar el **nombre** y el **precio de consulta** juntos, directamente en la tabla.
+
+![Editando una especialidad](img/11c_especialidades_editar.png)
+
+**Desactivar** la retira de los combos para asignarla a médicos nuevos, agendar citas o anotar en la lista de espera — pero no borra el historial: los médicos y citas que ya la tenían asignada la siguen mostrando con normalidad. El cambio de precio, en cualquier caso, no afecta las citas ya registradas, solo las nuevas.
 
 ---
 
@@ -181,7 +208,8 @@ Botón **+ Anotar paciente**.
 ![Formulario de lista de espera](img/16_lista_espera_anotar.png)
 
 - Se elige el **Paciente**.
-- Luego, **un médico específico** o **una especialidad** (si no importa cuál médico, mientras sea de esa especialidad).
+- Luego la **Especialidad** — al elegirla, el combo de **Médico** de abajo se filtra automáticamente y solo muestra los médicos de esa especialidad. Si dejas la especialidad en "Cualquiera", el combo de médico muestra a todos.
+- **Médico** — opcional: elige uno puntual, o deja "Cualquiera" / "Cualquiera de la especialidad" si no importa cuál, mientras sea de la especialidad elegida.
 - **Prioridad** — Normal o Urgente; los urgentes se notifican primero cuando hay varios esperando por el mismo médico o especialidad.
 
 ### Qué pasa cuando se libera un cupo
@@ -199,7 +227,7 @@ El paciente pasa a estado **Notificado**, se genera una alerta (ver sección 8) 
 
 ## 8. Alertas
 
-Sección **Alertas** — Administrador, Recepcionista y Médico (cada quien ve las que le corresponden).
+Sección **Alertas** — Administrador, Recepcionista y Médico, pero cada quien ve solo las que le corresponden: un médico nunca ve las alertas dirigidas al administrador (inasistencia frecuente, sobrecarga de agenda, lista de espera larga) ni las de otros pacientes, aunque conozca su identificador.
 
 ![Pantalla de alertas](img/17_alertas.png)
 
@@ -207,6 +235,8 @@ Tipos de alerta que genera el sistema automáticamente:
 - **Cupo disponible** — se liberó un cupo y hay alguien en la lista de espera que calza con él (ver sección 7).
 - **Inasistencia frecuente** — un paciente acumula varias inasistencias en poco tiempo; se avisa al administrador para que decida cómo manejarlo (por ejemplo, exigir pago adelantado).
 - Recordatorios de citas próximas y avisos de sobrecarga de horario también se generan de forma automática en segundo plano.
+
+Por ahora, todas las alertas automáticas se dirigen al paciente o al administrador — ningún tipo de alerta se genera todavía específicamente para un médico, así que su bandeja puede aparecer vacía; es el comportamiento correcto (ya no ve las ajenas), no un error.
 
 **Marcar como leída** cambia el estado de la alerta a atendida, para llevar control de cuáles ya se gestionaron.
 
@@ -238,7 +268,7 @@ El combobox de arriba a la izquierda (Semanal / Mensual / Trimestral / Anual) ca
 
   ![Reportes - pestaña Finanzas](img/03_reportes_finanzas.png)
 
-- **Tiempos** — tiempo de espera semanal por especialidad, tiempo promedio de consulta.
+- **Tiempos** — tiempo de espera semanal por especialidad, tiempo promedio de consulta y tiempo promedio de triaje (desde que se marca "Iniciar triaje" hasta que se guardan los signos vitales) por especialidad.
 
   ![Reportes - pestaña Tiempos](img/04_reportes_tiempos.png)
 
@@ -261,8 +291,8 @@ Los indicadores de "Citas completadas" e "Inasistencias" se calculan en vivo dir
 | Acción | Administrador | Recepcionista | Médico |
 |---|:---:|:---:|:---:|
 | Ver Reportes | ✅ | ❌ | ❌ |
-| Crear/editar Especialidades | ✅ | ❌ | ❌ (solo consulta) |
-| Crear/editar Médicos y sus horarios | ✅ | ❌ (solo consulta) | ❌ (solo consulta) |
+| Crear/editar/desactivar Especialidades | ✅ | ❌ | ❌ (solo consulta) |
+| Crear/editar Médicos, sus horarios y descansos | ✅ | ❌ (solo consulta) | ❌ (solo consulta) |
 | Crear/editar Pacientes | ✅ | ✅ | ❌ (solo consulta) |
 | Crear citas, check-in | ✅ | ✅ | ❌ |
 | Registrar triaje | ✅ | ✅ | ❌ |
@@ -290,6 +320,9 @@ No en la primera falla: el pago se reembolsa y tiene 24 horas para reprogramar s
 
 **¿Cómo sabe el sistema a quién avisar cuando se libera un cupo?**
 Revisa la lista de espera: primero busca a alguien que pidió ese médico específico, y si no hay, a alguien que pidió esa especialidad en general. Avisa por alerta interna y, si el paciente tiene email registrado, también por correo.
+
+**Desactivé una especialidad y ya no aparece para elegirla, ¿la perdí?**
+No — sigue existiendo. Solo se retira de los combos para elegirla en cosas nuevas (nuevo médico, nueva cita, lista de espera). Los médicos y citas que ya la tenían asignada la siguen mostrando con normalidad.
 
 ---
 
