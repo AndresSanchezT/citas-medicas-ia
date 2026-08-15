@@ -22,6 +22,7 @@ import {
   getRetencionIngresos,
   getScheduleOccupancy,
   getTiempoConsultaPorEspecialidad,
+  getTiempoTriajePorEspecialidad,
   getWaitTimeWeekly,
   type OccupancyPoint,
   type OccupancyWeeklyPoint,
@@ -153,6 +154,7 @@ export function ReportsPage() {
   const costosRef = useRef<HTMLDivElement>(null);
   const citasEspecialidadRef = useRef<HTMLDivElement>(null);
   const tiempoConsultaRef = useRef<HTMLDivElement>(null);
+  const tiempoTriajeRef = useRef<HTMLDivElement>(null);
 
   const dashboardQuery = useQuery({
     queryKey: ['dashboard', period],
@@ -166,6 +168,7 @@ export function ReportsPage() {
   const concurridasQuery = useQuery({ queryKey: ['citas-mas-concurridas'], queryFn: getCitasMasConcurridas });
   const citasEspecialidadQuery = useQuery({ queryKey: ['citas-por-especialidad'], queryFn: getCitasPorEspecialidad });
   const tiempoConsultaQuery = useQuery({ queryKey: ['tiempo-consulta-por-especialidad'], queryFn: getTiempoConsultaPorEspecialidad });
+  const tiempoTriajeQuery = useQuery({ queryKey: ['tiempo-triaje-por-especialidad'], queryFn: getTiempoTriajePorEspecialidad });
 
   const data = dashboardQuery.data ?? [];
   const totalCompletadas = data.reduce((sum, d) => sum + d.totalCitasCompletadas, 0);
@@ -190,9 +193,19 @@ export function ReportsPage() {
         ) / 10
       : 0;
 
+  const tiempoTriaje = tiempoTriajeQuery.data ?? [];
+  const totalTriajesConTiempo = tiempoTriaje.reduce((sum, t) => sum + t.totalTriajes, 0);
+  const tiempoTriajePromedioGlobal =
+    totalTriajesConTiempo > 0
+      ? Math.round(
+          (tiempoTriaje.reduce((sum, t) => sum + t.tiempoTriajePromedioMinutos * t.totalTriajes, 0) / totalTriajesConTiempo) * 10,
+        ) / 10
+      : 0;
+
   const isReportLoading =
     dashboardQuery.isLoading || rankingQuery.isLoading || occupancyQuery.isLoading || waitTimeWeeklyQuery.isLoading ||
-    costosQuery.isLoading || concurridasQuery.isLoading || citasEspecialidadQuery.isLoading || tiempoConsultaQuery.isLoading;
+    costosQuery.isLoading || concurridasQuery.isLoading || citasEspecialidadQuery.isLoading || tiempoConsultaQuery.isLoading ||
+    tiempoTriajeQuery.isLoading;
 
   const { rows: waitTimeWeeklyRows, especialidades: waitTimeEspecialidades } = pivotPorEspecialidad<WaitTimeWeeklyPoint>(
     waitTimeWeeklyQuery.data ?? [],
@@ -222,6 +235,7 @@ export function ReportsPage() {
       concurridas: concurridasQuery.data ?? [],
       citasPorEspecialidad: citasEspecialidadQuery.data ?? [],
       tiempoConsulta,
+      tiempoTriaje,
     };
   }
 
@@ -241,6 +255,7 @@ export function ReportsPage() {
       return {
         waitTimeWeekly: await capturarGrafico(waitTimeRef),
         tiempoConsulta: await capturarGrafico(tiempoConsultaRef),
+        tiempoTriaje: await capturarGrafico(tiempoTriajeRef),
       };
     }
     return {
@@ -462,6 +477,12 @@ export function ReportsPage() {
               tone={PALETTE.violet}
               icon={<><path d="M9 3v4a3 3 0 0 0 6 0V3M12 7v14" /></>}
             />
+            <KpiCard
+              label="Tiempo de triaje promedio (min)"
+              value={tiempoTriajePromedioGlobal}
+              tone={PALETTE.teal}
+              icon={<><path d="M9 12h6M9 16h4M8 4h8a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z" /></>}
+            />
           </div>
 
           <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap' }}>
@@ -511,6 +532,24 @@ export function ReportsPage() {
                     <YAxis stroke="var(--text-muted)" tick={{ fontSize: 12 }} />
                     <Tooltip contentStyle={{ borderRadius: 8, border: '1px solid var(--border)', fontSize: 13 }} />
                     <Bar dataKey="tiempoConsultaPromedioMinutos" name="Duración promedio (min)" fill={PALETTE.violet} radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
+            </ChartCard>
+
+            <ChartCard title="Tiempo de triaje promedio por especialidad (min)" captureRef={tiempoTriajeRef}>
+              {tiempoTriajeQuery.isLoading ? (
+                <p>Cargando...</p>
+              ) : tiempoTriaje.length === 0 ? (
+                <p>Aún no hay triajes con inicio y fin registrados.</p>
+              ) : (
+                <ResponsiveContainer width="100%" height={320}>
+                  <BarChart data={tiempoTriaje}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                    <XAxis dataKey="especialidad" stroke="var(--text-muted)" tick={{ fontSize: 11 }} />
+                    <YAxis stroke="var(--text-muted)" tick={{ fontSize: 12 }} />
+                    <Tooltip contentStyle={{ borderRadius: 8, border: '1px solid var(--border)', fontSize: 13 }} />
+                    <Bar dataKey="tiempoTriajePromedioMinutos" name="Duración promedio (min)" fill={PALETTE.teal} radius={[4, 4, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               )}

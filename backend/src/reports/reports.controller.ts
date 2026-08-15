@@ -68,6 +68,12 @@ export class ReportsController {
     return this.reportsService.getTiempoConsultaPorEspecialidad(from, to);
   }
 
+  @Get('tiempo-triaje-por-especialidad')
+  @Roles(Role.ADMIN)
+  getTiempoTriajePorEspecialidad(@Query('from') from?: string, @Query('to') to?: string) {
+    return this.reportsService.getTiempoTriajePorEspecialidad(from, to);
+  }
+
   @Post('generate-daily-stats')
   @Roles(Role.ADMIN)
   generateDailyStats(@Body('fecha') fecha?: string) {

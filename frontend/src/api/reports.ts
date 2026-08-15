@@ -112,3 +112,14 @@ export async function getTiempoConsultaPorEspecialidad(): Promise<TiempoConsulta
   const { data } = await apiClient.get<TiempoConsultaPorEspecialidad[]>('/reports/tiempo-consulta-por-especialidad');
   return data;
 }
+
+export interface TiempoTriajePorEspecialidad {
+  especialidad: string;
+  tiempoTriajePromedioMinutos: number;
+  totalTriajes: number;
+}
+
+export async function getTiempoTriajePorEspecialidad(): Promise<TiempoTriajePorEspecialidad[]> {
+  const { data } = await apiClient.get<TiempoTriajePorEspecialidad[]>('/reports/tiempo-triaje-por-especialidad');
+  return data;
+}

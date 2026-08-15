@@ -417,4 +417,44 @@ export class ReportsService {
       }))
       .sort((a, b) => b.tiempoConsultaPromedioMinutos - a.tiempoConsultaPromedioMinutos);
   }
+
+  // ---------- Tiempo de triaje promedio por especialidad (desde "Iniciar triaje" hasta que
+  // se guardan los signos vitales, ver TriageModal/appointments.service.ts) ----------
+
+  async getTiempoTriajePorEspecialidad(from?: string, to?: string) {
+    const desde = from ? new Date(from) : new Date(new Date().setMonth(new Date().getMonth() - 12));
+    const hasta = to ? new Date(to) : new Date();
+
+    const triajes = await this.prisma.triage.findMany({
+      where: {
+        inicioTriajeEn: { not: null },
+        finTriajeEn: { not: null },
+        appointment: { fecha: { gte: desde, lte: hasta } },
+      },
+      select: {
+        inicioTriajeEn: true,
+        finTriajeEn: true,
+        appointment: { select: { doctor: { select: { specialty: { select: { nombre: true } } } } } },
+      },
+    });
+
+    const porEspecialidad = new Map<string, { suma: number; conteo: number }>();
+    for (const t of triajes) {
+      const minutos = (t.finTriajeEn!.getTime() - t.inicioTriajeEn!.getTime()) / 60000;
+      if (minutos < 0) continue;
+      const especialidad = t.appointment.doctor.specialty.nombre;
+      if (!porEspecialidad.has(especialidad)) porEspecialidad.set(especialidad, { suma: 0, conteo: 0 });
+      const bucket = porEspecialidad.get(especialidad)!;
+      bucket.suma += minutos;
+      bucket.conteo += 1;
+    }
+
+    return Array.from(porEspecialidad.entries())
+      .map(([especialidad, { suma, conteo }]) => ({
+        especialidad,
+        tiempoTriajePromedioMinutos: Math.round((suma / conteo) * 10) / 10,
+        totalTriajes: conteo,
+      }))
+      .sort((a, b) => b.tiempoTriajePromedioMinutos - a.tiempoTriajePromedioMinutos);
+  }
 }
