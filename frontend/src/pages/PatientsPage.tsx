@@ -52,11 +52,16 @@ export function PatientsPage() {
   const [editing, setEditing] = useState<Patient | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [historyPatient, setHistoryPatient] = useState<Patient | null>(null);
+  const [page, setPage] = useState(1);
+  const pageSize = 10;
 
-  const { data: patients = [], isLoading } = useQuery({
-    queryKey: ['patients', search],
-    queryFn: () => fetchPatients(search || undefined),
+  const { data: patientsResponse, isLoading } = useQuery({
+    queryKey: ['patients', search, page],
+    queryFn: () => fetchPatients(search || undefined, page, pageSize),
   });
+  const patients = patientsResponse?.data ?? [];
+  const total = patientsResponse?.total ?? 0;
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
   const { register, handleSubmit, reset, watch, formState: { errors, isSubmitting } } = useForm<PatientForm>({
     resolver: zodResolver(patientSchema),
@@ -117,7 +122,7 @@ export function PatientsPage() {
       <input
         placeholder="Buscar por nombre, apellido o documento..."
         value={search}
-        onChange={(e) => setSearch(e.target.value)}
+        onChange={(e) => { setSearch(e.target.value); setPage(1); }}
         style={{ ...ui.input, maxWidth: 360 }}
       />
 
@@ -178,6 +183,30 @@ export function PatientsPage() {
           </tbody>
         </table>
       </div>
+
+      {total > 0 && (
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 12 }}>
+          <span style={{ color: 'var(--text-secondary)', fontSize: 13 }}>
+            {total} paciente{total === 1 ? '' : 's'} — página {page} de {totalPages}
+          </span>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button
+              style={ui.secondaryButton}
+              disabled={page <= 1}
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+            >
+              ← Anterior
+            </button>
+            <button
+              style={ui.secondaryButton}
+              disabled={page >= totalPages}
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+            >
+              Siguiente →
+            </button>
+          </div>
+        </div>
+      )}
 
       {showForm && (
         <Modal title={editing ? 'Editar paciente' : 'Nuevo paciente'} onClose={closeForm}>

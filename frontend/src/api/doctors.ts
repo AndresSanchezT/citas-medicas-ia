@@ -26,8 +26,15 @@ export interface DoctorInput {
   password?: string;
 }
 
-export async function fetchDoctors(): Promise<Doctor[]> {
-  const { data } = await apiClient.get<Doctor[]>('/doctors');
+export interface PaginatedDoctors {
+  data: Doctor[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+export async function fetchDoctors(page?: number, pageSize?: number): Promise<PaginatedDoctors> {
+  const { data } = await apiClient.get<PaginatedDoctors>('/doctors', { params: { page, pageSize } });
   return data;
 }
 

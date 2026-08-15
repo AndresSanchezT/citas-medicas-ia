@@ -7,6 +7,7 @@ import {
   ParseIntPipe,
   Patch,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { Role } from '../../generated/prisma/enums';
@@ -30,8 +31,8 @@ export class DoctorsController {
 
   @Get()
   @Roles(Role.ADMIN, Role.RECEPCIONISTA, Role.MEDICO)
-  findAll() {
-    return this.doctorsService.findAll();
+  findAll(@Query('page') page?: string, @Query('pageSize') pageSize?: string) {
+    return this.doctorsService.findAll(page ? Number(page) : undefined, pageSize ? Number(pageSize) : undefined);
   }
 
   @Get(':id')

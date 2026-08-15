@@ -48,12 +48,20 @@ export class DoctorsService {
     });
   }
 
-  findAll() {
-    return this.prisma.doctor.findMany({
-      where: { activo: true },
-      include: { specialty: true },
-      orderBy: { apellidos: 'asc' },
-    });
+  async findAll(page?: number, pageSize?: number) {
+    const where = { activo: true };
+
+    // pageSize por defecto alto: los combos de selección (Nueva cita, Lista de espera,
+    // Reprogramar) que no paginan siguen trayendo todo en una sola página.
+    const p = page && page > 0 ? page : 1;
+    const ps = pageSize && pageSize > 0 ? pageSize : 1000;
+
+    const [data, total] = await this.prisma.$transaction([
+      this.prisma.doctor.findMany({ where, include: { specialty: true }, orderBy: { apellidos: 'asc' }, skip: (p - 1) * ps, take: ps }),
+      this.prisma.doctor.count({ where }),
+    ]);
+
+    return { data, total, page: p, pageSize: ps };
   }
 
   async findOne(id: number) {

@@ -43,8 +43,15 @@ export interface PatientInput {
   direccion?: string;
 }
 
-export async function fetchPatients(search?: string): Promise<Patient[]> {
-  const { data } = await apiClient.get<Patient[]>('/patients', { params: search ? { search } : {} });
+export interface PaginatedPatients {
+  data: Patient[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+export async function fetchPatients(search?: string, page?: number, pageSize?: number): Promise<PaginatedPatients> {
+  const { data } = await apiClient.get<PaginatedPatients>('/patients', { params: { search: search || undefined, page, pageSize } });
   return data;
 }
 

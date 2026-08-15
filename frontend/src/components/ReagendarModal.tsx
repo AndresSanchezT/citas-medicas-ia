@@ -20,7 +20,7 @@ export function ReagendarModal({ appointment, onClose }: ReagendarModalProps) {
   const [slotId, setSlotId] = useState<number | null>(null);
   const [motivo, setMotivo] = useState('');
 
-  const { data: doctors = [] } = useQuery({ queryKey: ['doctors'], queryFn: fetchDoctors });
+  const { data: doctors = [] } = useQuery({ queryKey: ['doctors'], queryFn: () => fetchDoctors(), select: (r) => r.data });
   const { data: slots = [] } = useQuery({
     queryKey: ['available-slots', doctorId],
     queryFn: () => fetchSlots(doctorId),

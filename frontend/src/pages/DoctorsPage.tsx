@@ -46,8 +46,16 @@ export function DoctorsPage() {
   const [newSpecialty, setNewSpecialty] = useState('');
   const [timeOffDoctor, setTimeOffDoctor] = useState<Doctor | null>(null);
   const [scheduleDoctor, setScheduleDoctor] = useState<Doctor | null>(null);
+  const [page, setPage] = useState(1);
+  const pageSize = 10;
 
-  const { data: doctors = [], isLoading } = useQuery({ queryKey: ['doctors'], queryFn: fetchDoctors });
+  const { data: doctorsResponse, isLoading } = useQuery({
+    queryKey: ['doctors', page],
+    queryFn: () => fetchDoctors(page, pageSize),
+  });
+  const doctors = doctorsResponse?.data ?? [];
+  const total = doctorsResponse?.total ?? 0;
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const { data: specialties = [] } = useQuery({ queryKey: ['specialties'], queryFn: fetchSpecialties });
 
   const { register, handleSubmit, reset, setError, watch, formState: { errors, isSubmitting } } = useForm<DoctorForm>({
@@ -163,9 +171,11 @@ export function DoctorsPage() {
                   <button style={{ ...ui.secondaryButton, marginRight: 8 }} onClick={() => setScheduleDoctor(d)}>
                     Horarios
                   </button>
-                  <button style={{ ...ui.secondaryButton, marginRight: 8 }} onClick={() => setTimeOffDoctor(d)}>
-                    Descansos/Vacaciones
-                  </button>
+                  {puedeGestionar && (
+                    <button style={{ ...ui.secondaryButton, marginRight: 8 }} onClick={() => setTimeOffDoctor(d)}>
+                      Descansos/Vacaciones
+                    </button>
+                  )}
                   {puedeGestionar && (
                     <button style={{ ...ui.secondaryButton, marginRight: 8 }} onClick={() => openEdit(d)}>
                       Editar
@@ -189,6 +199,30 @@ export function DoctorsPage() {
           </tbody>
         </table>
       </div>
+
+      {total > 0 && (
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 12 }}>
+          <span style={{ color: 'var(--text-secondary)', fontSize: 13 }}>
+            {total} médico{total === 1 ? '' : 's'} — página {page} de {totalPages}
+          </span>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button
+              style={ui.secondaryButton}
+              disabled={page <= 1}
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+            >
+              ← Anterior
+            </button>
+            <button
+              style={ui.secondaryButton}
+              disabled={page >= totalPages}
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+            >
+              Siguiente →
+            </button>
+          </div>
+        </div>
+      )}
 
       {showForm && (
         <Modal title={editing ? 'Editar médico' : 'Nuevo médico'} onClose={closeForm}>
@@ -284,7 +318,7 @@ export function DoctorsPage() {
       )}
 
       {scheduleDoctor && (
-        <DoctorScheduleModal doctor={scheduleDoctor} onClose={() => setScheduleDoctor(null)} />
+        <DoctorScheduleModal doctor={scheduleDoctor} puedeEditar={puedeGestionar} onClose={() => setScheduleDoctor(null)} />
       )}
     </div>
   );

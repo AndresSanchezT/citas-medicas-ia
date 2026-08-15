@@ -67,8 +67,8 @@ export function AppointmentsPage() {
     };
   }
 
-  const { data: patients = [] } = useQuery({ queryKey: ['patients', ''], queryFn: () => fetchPatients() });
-  const { data: doctors = [] } = useQuery({ queryKey: ['doctors'], queryFn: fetchDoctors });
+  const { data: patients = [] } = useQuery({ queryKey: ['patients', ''], queryFn: () => fetchPatients(), select: (r) => r.data });
+  const { data: doctors = [] } = useQuery({ queryKey: ['doctors'], queryFn: () => fetchDoctors(), select: (r) => r.data });
   const { data: specialties = [] } = useQuery({ queryKey: ['specialties'], queryFn: fetchSpecialties });
   const { data: availableSlots = [] } = useQuery({
     queryKey: ['available-slots', selectedDoctorId],

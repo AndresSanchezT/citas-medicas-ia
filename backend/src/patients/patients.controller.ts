@@ -31,8 +31,12 @@ export class PatientsController {
 
   @Get()
   @Roles(Role.ADMIN, Role.RECEPCIONISTA, Role.MEDICO)
-  findAll(@Query('search') search?: string) {
-    return this.patientsService.findAll(search);
+  findAll(
+    @Query('search') search?: string,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+  ) {
+    return this.patientsService.findAll(search, page ? Number(page) : undefined, pageSize ? Number(pageSize) : undefined);
   }
 
   @Get(':id')

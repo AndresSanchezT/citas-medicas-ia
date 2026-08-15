@@ -45,20 +45,29 @@ export class PatientsService {
     });
   }
 
-  async findAll(search?: string) {
-    return this.prisma.patient.findMany({
-      where: search
-        ? {
-            activo: true,
-            OR: [
-              { nombres: { contains: search } },
-              { apellidos: { contains: search } },
-              { documentoIdentidad: { contains: search } },
-            ],
-          }
-        : { activo: true },
-      orderBy: { apellidos: 'asc' },
-    });
+  async findAll(search?: string, page?: number, pageSize?: number) {
+    const where = search
+      ? {
+          activo: true,
+          OR: [
+            { nombres: { contains: search } },
+            { apellidos: { contains: search } },
+            { documentoIdentidad: { contains: search } },
+          ],
+        }
+      : { activo: true };
+
+    // pageSize por defecto alto: los combos de selección (Nueva cita, Lista de espera) que
+    // no paginan siguen trayendo todo en una sola página, igual que en appointments.service.ts.
+    const p = page && page > 0 ? page : 1;
+    const ps = pageSize && pageSize > 0 ? pageSize : 1000;
+
+    const [data, total] = await this.prisma.$transaction([
+      this.prisma.patient.findMany({ where, orderBy: { apellidos: 'asc' }, skip: (p - 1) * ps, take: ps }),
+      this.prisma.patient.count({ where }),
+    ]);
+
+    return { data, total, page: p, pageSize: ps };
   }
 
   async findOne(id: number) {
