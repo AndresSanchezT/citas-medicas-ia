@@ -358,7 +358,7 @@ export class AppointmentsService {
         throw new BadRequestException(
           appointment.reembolso === 'PERDIDO'
             ? 'Esta cita ya no tiene derecho a reprogramación: se perdió esa oportunidad.'
-            : 'El plazo de 24 horas para reprogramar esta cita ya venció.',
+            : 'Esta cita ya no se puede reprogramar: ya se usó la única oportunidad, o el plazo de 24 horas venció.',
         );
       }
       throw new BadRequestException(`No se puede reagendar una cita en estado ${appointment.estado}`);
@@ -382,6 +382,12 @@ export class AppointmentsService {
         // REPROGRAMADA (no CANCELADA): la cita no se canceló por sí sola, se movió a otro
         // horario/médico — dejarla como "Cancelada" confundía en la tabla de Citas.
         await tx.appointment.update({ where: { id }, data: { estado: 'REPROGRAMADA' } });
+      } else if (esRecuperacion) {
+        // Se consume el plazo: la cita original se queda en su estado real (Cancelada o
+        // No asistió, para no falsear los reportes de inasistencias), pero ya no debe
+        // volver a ofrecer "Reprogramar" — ni en la UI ni si alguien reintenta el mismo
+        // llamado. No se toca `reembolso`: el pago sigue reflejando que se preservó.
+        await tx.appointment.update({ where: { id }, data: { plazoReprogramacionHasta: null } });
       }
 
       // 2) Creación del nuevo registro: fila nueva con la fecha/hora elegida, en Pendiente.
