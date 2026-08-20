@@ -32,16 +32,25 @@ export function SlotCalendarPicker({ slots, value, onChange }: SlotCalendarPicke
     [porFecha],
   );
 
+  // `slots` casi siempre llega como un arreglo nuevo en cada render (ej. un `.filter()`
+  // inline en el componente que llama a este), aunque su contenido no haya cambiado en
+  // realidad. Comparar por esta "firma" (en vez de por la referencia del arreglo) evita
+  // que elegir una hora dispare el efecto de abajo y cierre la vista de horarios que el
+  // usuario recién abrió — antes pasaba porque onChange() actualiza el estado del padre,
+  // ese re-render recalculaba `slots` con una referencia distinta, y el efecto lo tomaba
+  // como "cambió de médico" y reiniciaba la selección.
+  const firmaSlots = useMemo(() => slots.map((s) => s.id).sort((a, b) => a - b).join(','), [slots]);
+
   const [mes, setMes] = useState(() => dayjs(fechasConCupo[0] ?? undefined));
   const [fechaSeleccionada, setFechaSeleccionada] = useState<string | null>(null);
 
-  // Si cambia el médico (y por lo tanto la lista de slots), se reinicia la selección y el
-  // calendario salta al primer mes que tenga disponibilidad.
+  // Si cambia el conjunto real de cupos (ej. se eligió otro médico), se reinicia la
+  // selección y el calendario salta al primer mes que tenga disponibilidad.
   useEffect(() => {
     setFechaSeleccionada(null);
     setMes(dayjs(fechasConCupo[0] ?? undefined));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [slots]);
+  }, [firmaSlots]);
 
   const inicioMes = mes.startOf('month');
   const diasEnMes = mes.daysInMonth();
