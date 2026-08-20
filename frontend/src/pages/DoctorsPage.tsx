@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type FocusEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -10,6 +10,7 @@ import { Modal } from '../components/Modal';
 import { DoctorTimeOffModal } from '../components/DoctorTimeOffModal';
 import { DoctorScheduleModal } from '../components/DoctorScheduleModal';
 import { useAuth } from '../context/AuthContext';
+import { capitalizarNombre } from '../utils/text';
 import * as ui from '../components/ui';
 
 // El DNI exige exactamente 8 dígitos (como en el resto del sistema); los demás tipos de
@@ -58,10 +59,16 @@ export function DoctorsPage() {
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const { data: specialties = [] } = useQuery({ queryKey: ['specialties'], queryFn: fetchSpecialties });
 
-  const { register, handleSubmit, reset, setError, watch, formState: { errors, isSubmitting } } = useForm<DoctorForm>({
+  const { register, handleSubmit, reset, setError, watch, setValue, formState: { errors, isSubmitting } } = useForm<DoctorForm>({
     resolver: zodResolver(doctorSchema),
   });
   const watchedTipoDocumento = watch('tipoDocumento');
+
+  // Al salir del campo, se normaliza a "Título Case" sin importar cómo se haya escrito
+  // (todo mayúsculas, todo minúsculas, mezclado) — así queda consistente en toda la base.
+  function alSalirCapitalizar(campo: 'nombres' | 'apellidos') {
+    return (e: FocusEvent<HTMLInputElement>) => setValue(campo, capitalizarNombre(e.target.value), { shouldValidate: true });
+  }
 
   const saveMutation = useMutation({
     mutationFn: (values: DoctorForm) => {
@@ -228,11 +235,11 @@ export function DoctorsPage() {
         <Modal title={editing ? 'Editar médico' : 'Nuevo médico'} onClose={closeForm}>
           <form onSubmit={handleSubmit(onSubmit)}>
             <label>Nombres</label>
-            <input {...register('nombres')} placeholder="Ej. Carlos" style={ui.input} />
+            <input {...register('nombres', { onBlur: alSalirCapitalizar('nombres') })} placeholder="Ej. Carlos" style={ui.input} />
             {errors.nombres && <small style={{ color: 'var(--color-critical)' }}>{errors.nombres.message}</small>}
 
             <label>Apellidos</label>
-            <input {...register('apellidos')} placeholder="Ej. García Flores" style={ui.input} />
+            <input {...register('apellidos', { onBlur: alSalirCapitalizar('apellidos') })} placeholder="Ej. García Flores" style={ui.input} />
             {errors.apellidos && <small style={{ color: 'var(--color-critical)' }}>{errors.apellidos.message}</small>}
 
             <label>Tipo de documento</label>
