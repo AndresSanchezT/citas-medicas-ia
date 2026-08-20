@@ -106,6 +106,11 @@ export async function completeAppointment(id: number, horaAtencionFinReal?: stri
   return data;
 }
 
+export async function updatePago(id: number, input: { pagado: boolean; monto?: number }): Promise<Appointment> {
+  const { data } = await apiClient.patch<Appointment>(`/appointments/${id}/pago`, input);
+  return data;
+}
+
 export async function cancelAppointment(id: number): Promise<Appointment> {
   const { data } = await apiClient.patch<Appointment>(`/appointments/${id}/cancel`);
   return data;

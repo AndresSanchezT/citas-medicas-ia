@@ -10,6 +10,7 @@ import { CreateAppointmentDto } from './dto/create-appointment.dto';
 import { CreateTriageDto } from './dto/create-triage.dto';
 import { RescheduleAppointmentDto } from './dto/reschedule-appointment.dto';
 import { StartConsultationDto } from './dto/start-consultation.dto';
+import { UpdatePagoDto } from './dto/update-pago.dto';
 
 // Un médico solo puede cancelar o marcar no-asistió en sus propias citas; los demás
 // roles (ADMIN, RECEPCIONISTA) gestionan la agenda de cualquier médico.
@@ -183,6 +184,24 @@ export class AppointmentsService {
       throw new NotFoundException(`Cita ${id} no encontrada`);
     }
     return appointment;
+  }
+
+  // Permite corregir el pago cuando se creó la cita sin marcar la casilla por error. No se
+  // permite en citas ya canceladas/no-asistidas/reprogramadas porque esos estados ya
+  // resolvieron el pago mediante resolverPoliticaFalla (reembolso/pérdida), y tocarlo acá
+  // rompería esa resolución.
+  async actualizarPago(id: number, dto: UpdatePagoDto) {
+    const appointment = await this.findOne(id);
+    if (['CANCELADA', 'NO_ASISTIO', 'REPROGRAMADA'].includes(appointment.estado)) {
+      throw new BadRequestException(`No se puede modificar el pago de una cita en estado ${appointment.estado}`);
+    }
+    return this.prisma.appointment.update({
+      where: { id },
+      data: {
+        pagado: dto.pagado,
+        monto: dto.pagado ? dto.monto : null,
+      },
+    });
   }
 
   async checkIn(id: number) {

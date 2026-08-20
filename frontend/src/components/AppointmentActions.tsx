@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { Appointment } from '../api/appointments';
 import type { Usuario } from '../api/auth';
 import { ConfirmarFallaModal } from './ConfirmarFallaModal';
+import { EditarPagoModal } from './EditarPagoModal';
 import { TimePickerModal } from './TimePickerModal';
 import * as ui from './ui';
 
@@ -75,6 +76,9 @@ export function AppointmentActions({
   // ejecutarlos se pide confirmación en un modal propio (ConfirmarFallaModal) en vez del
   // window.confirm() nativo, que no se puede estilizar.
   const [confirmacionPendiente, setConfirmacionPendiente] = useState<'cancelar' | 'no-asistio' | null>(null);
+  // Corrige citas que se guardaron sin marcar el pago por error — disponible mientras la
+  // cita siga "viva" (no cancelada/no-asistida/reprogramada, ver actualizarPago en el backend).
+  const [editandoPago, setEditandoPago] = useState(false);
 
   const confirmacionModal = confirmacionPendiente && (
     <ConfirmarFallaModal
@@ -88,6 +92,10 @@ export function AppointmentActions({
         setConfirmacionPendiente(null);
       }}
     />
+  );
+
+  const editarPagoModal = editandoPago && (
+    <EditarPagoModal appointment={appointment} onClose={() => setEditandoPago(false)} />
   );
 
   const btn = (label: string, onClick: () => void, color?: string) => (
@@ -110,7 +118,9 @@ export function AppointmentActions({
         {puedeRecepcionar && onReschedule && btn('Derivar', () => onReschedule(appointment), 'var(--color-primary)')}
         {puedeCancelarONoShow && btn('No-asistió', () => setConfirmacionPendiente('no-asistio'), 'var(--color-critical)')}
         {puedeCancelarONoShow && btn('Cancelar', () => setConfirmacionPendiente('cancelar'), 'var(--text-muted)')}
+        {puedeRecepcionar && btn('Editar pago', () => setEditandoPago(true), 'var(--color-neutral)')}
         {confirmacionModal}
+        {editarPagoModal}
       </>
     );
   }
@@ -123,6 +133,7 @@ export function AppointmentActions({
         {puedeAtender && btn('Iniciar consulta', () => setHoraPendiente('start'))}
         {puedeCancelarONoShow && btn('No-asistió', () => setConfirmacionPendiente('no-asistio'), 'var(--color-critical)')}
         {puedeCancelarONoShow && btn('Cancelar', () => setConfirmacionPendiente('cancelar'), 'var(--text-muted)')}
+        {puedeRecepcionar && btn('Editar pago', () => setEditandoPago(true), 'var(--color-neutral)')}
         {horaPendiente === 'start' && (
           <TimePickerModal
             title="Iniciar consulta"
@@ -133,14 +144,16 @@ export function AppointmentActions({
           />
         )}
         {confirmacionModal}
+        {editarPagoModal}
       </>
     );
   }
   if (appointment.estado === 'EN_CURSO') {
-    if (!puedeAtender) return <span style={{ color: 'var(--text-muted)' }}>En curso</span>;
+    if (!puedeAtender && !puedeRecepcionar) return <span style={{ color: 'var(--text-muted)' }}>En curso</span>;
     return (
       <>
-        {btn('Completar', () => setHoraPendiente('complete'), 'var(--color-good)')}
+        {puedeAtender && btn('Completar', () => setHoraPendiente('complete'), 'var(--color-good)')}
+        {puedeRecepcionar && btn('Editar pago', () => setEditandoPago(true), 'var(--color-neutral)')}
         {horaPendiente === 'complete' && (
           <TimePickerModal
             title="Completar consulta"
@@ -150,6 +163,16 @@ export function AppointmentActions({
             onConfirm={(iso) => { onComplete(appointment.id, iso); setHoraPendiente(null); }}
           />
         )}
+        {editarPagoModal}
+      </>
+    );
+  }
+  if (appointment.estado === 'COMPLETADA') {
+    if (!puedeRecepcionar) return <span style={{ color: 'var(--text-muted)' }}>—</span>;
+    return (
+      <>
+        {btn('Editar pago', () => setEditandoPago(true), 'var(--color-neutral)')}
+        {editarPagoModal}
       </>
     );
   }

@@ -20,6 +20,7 @@ import { CreateAppointmentDto } from './dto/create-appointment.dto';
 import { CreateTriageDto } from './dto/create-triage.dto';
 import { RescheduleAppointmentDto } from './dto/reschedule-appointment.dto';
 import { StartConsultationDto } from './dto/start-consultation.dto';
+import { UpdatePagoDto } from './dto/update-pago.dto';
 
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('appointments')
@@ -72,6 +73,12 @@ export class AppointmentsController {
   @Roles(Role.ADMIN, Role.RECEPCIONISTA, Role.MEDICO)
   findOne(@Param('id', ParseIntPipe) id: number) {
     return this.appointmentsService.findOne(id);
+  }
+
+  @Patch(':id/pago')
+  @Roles(Role.ADMIN, Role.RECEPCIONISTA)
+  actualizarPago(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdatePagoDto) {
+    return this.appointmentsService.actualizarPago(id, dto);
   }
 
   @Patch(':id/check-in')
