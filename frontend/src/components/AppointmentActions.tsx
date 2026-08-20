@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { Appointment } from '../api/appointments';
 import type { Usuario } from '../api/auth';
+import { ConfirmarFallaModal } from './ConfirmarFallaModal';
 import { TimePickerModal } from './TimePickerModal';
 import * as ui from './ui';
 
@@ -27,24 +28,6 @@ export const PRIORIDAD_LABEL: Record<string, string> = {
 const PUEDE_RECEPCIONAR: Usuario['rol'][] = ['ADMIN', 'RECEPCIONISTA'];
 const PUEDE_ATENDER: Usuario['rol'][] = ['ADMIN', 'MEDICO'];
 const PUEDE_CANCELAR_O_NOSHOW: Usuario['rol'][] = ['ADMIN', 'RECEPCIONISTA', 'MEDICO'];
-
-// Política "reprogramación única con plazo de 24h": aplica a toda cita, pagada o no —
-// avisa de antemano si el pago se reembolsa o se pierde (cuando corresponde), y que
-// tendrá 24h para reprogramar si es su primera falla (ver AppointmentsService.
-// resolverPoliticaFalla en el backend, que aplica la misma regla tanto a cancelaciones
-// como a inasistencias).
-function confirmarCancelacion(appointment: Appointment): boolean {
-  if (!appointment.pagado) {
-    return appointment.reprogramacionGratuitaUsada
-      ? window.confirm('Esta cita ya usó su única oportunidad de reprogramación. Al cancelarla, ya no podrá reprogramarse de nuevo. ¿Confirmar cancelación?')
-      : window.confirm('¿Cancelar esta cita? Al ser su primera falla, tendrá 24 horas para reprogramarla.');
-  }
-  const monto = appointment.monto != null ? `S/ ${appointment.monto}` : 'el pago';
-  const mensaje = appointment.reprogramacionGratuitaUsada
-    ? `Esta cita ya usó su única oportunidad. Al cancelarla se PIERDE ${monto} — no se reembolsa ni se puede reprogramar. ¿Confirmar cancelación?`
-    : `Esta cita está pagada (${monto}). Es su primera falla, así que el pago SE REEMBOLSA y tendrá 24 horas para reprogramar la siguiente cita. ¿Confirmar cancelación?`;
-  return window.confirm(mensaje);
-}
 
 // La cita ya cancelada/no-asistida solo puede reprogramarse de nuevo si todavía no había
 // usado esa oportunidad y el plazo de 24h no venció — sin importar si estaba pagada (ver
@@ -88,6 +71,24 @@ export function AppointmentActions({
   // le imponga "ahora mismo" (ver TimePickerModal); acá se guarda cuál de las dos
   // acciones está pendiente de que elija la hora.
   const [horaPendiente, setHoraPendiente] = useState<'start' | 'complete' | null>(null);
+  // Cancelar y No-asistió cambian el pago/la posibilidad de reprogramar, así que antes de
+  // ejecutarlos se pide confirmación en un modal propio (ConfirmarFallaModal) en vez del
+  // window.confirm() nativo, que no se puede estilizar.
+  const [confirmacionPendiente, setConfirmacionPendiente] = useState<'cancelar' | 'no-asistio' | null>(null);
+
+  const confirmacionModal = confirmacionPendiente && (
+    <ConfirmarFallaModal
+      appointment={appointment}
+      accion={confirmacionPendiente}
+      busy={busy}
+      onClose={() => setConfirmacionPendiente(null)}
+      onConfirm={() => {
+        if (confirmacionPendiente === 'cancelar') onCancel(appointment.id);
+        else onNoShow(appointment.id);
+        setConfirmacionPendiente(null);
+      }}
+    />
+  );
 
   const btn = (label: string, onClick: () => void, color?: string) => (
     <button
@@ -107,8 +108,9 @@ export function AppointmentActions({
       <>
         {puedeRecepcionar && btn('Check-in', () => onCheckIn(appointment.id))}
         {puedeRecepcionar && onReschedule && btn('Derivar', () => onReschedule(appointment), 'var(--color-primary)')}
-        {puedeCancelarONoShow && btn('No-asistió', () => onNoShow(appointment.id), 'var(--color-critical)')}
-        {puedeCancelarONoShow && btn('Cancelar', () => { if (confirmarCancelacion(appointment)) onCancel(appointment.id); }, 'var(--text-muted)')}
+        {puedeCancelarONoShow && btn('No-asistió', () => setConfirmacionPendiente('no-asistio'), 'var(--color-critical)')}
+        {puedeCancelarONoShow && btn('Cancelar', () => setConfirmacionPendiente('cancelar'), 'var(--text-muted)')}
+        {confirmacionModal}
       </>
     );
   }
@@ -119,8 +121,8 @@ export function AppointmentActions({
           btn(appointment.triage ? 'Editar triaje' : 'Triaje', () => onTriage(appointment), 'var(--color-violet)')}
         {puedeRecepcionar && onReschedule && btn('Derivar', () => onReschedule(appointment), 'var(--color-primary)')}
         {puedeAtender && btn('Iniciar consulta', () => setHoraPendiente('start'))}
-        {puedeCancelarONoShow && btn('No-asistió', () => onNoShow(appointment.id), 'var(--color-critical)')}
-        {puedeCancelarONoShow && btn('Cancelar', () => { if (confirmarCancelacion(appointment)) onCancel(appointment.id); }, 'var(--text-muted)')}
+        {puedeCancelarONoShow && btn('No-asistió', () => setConfirmacionPendiente('no-asistio'), 'var(--color-critical)')}
+        {puedeCancelarONoShow && btn('Cancelar', () => setConfirmacionPendiente('cancelar'), 'var(--text-muted)')}
         {horaPendiente === 'start' && (
           <TimePickerModal
             title="Iniciar consulta"
@@ -130,6 +132,7 @@ export function AppointmentActions({
             onConfirm={(iso) => { onStart(appointment.id, iso); setHoraPendiente(null); }}
           />
         )}
+        {confirmacionModal}
       </>
     );
   }

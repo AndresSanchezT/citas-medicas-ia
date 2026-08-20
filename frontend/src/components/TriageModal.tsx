@@ -162,7 +162,7 @@ export function TriageModal({ appointment, onClose }: TriageModalProps) {
           No se pudo registrar el inicio del triaje. Intenta de nuevo.
         </p>
       )}
-      <form onSubmit={handleSubmit((values) => saveMutation.mutate(values))}>
+      <form onSubmit={handleSubmit((values) => { if (inicioTriaje) saveMutation.mutate(values); })}>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 1rem' }}>
           <div>
             <label>Presión sistólica (mmHg) — normal 90-140</label>
@@ -253,9 +253,20 @@ export function TriageModal({ appointment, onClose }: TriageModalProps) {
             Cerrar
           </button>
         ) : (
-          <button type="submit" disabled={saveMutation.isPending} style={{ ...ui.primaryButton, width: '100%' }}>
-            Guardar triaje
-          </button>
+          <>
+            <button
+              type="submit"
+              disabled={!inicioTriaje || saveMutation.isPending}
+              style={{ ...ui.primaryButton, width: '100%', ...(!inicioTriaje ? { opacity: 0.5, cursor: 'not-allowed' } : {}) }}
+            >
+              Guardar triaje
+            </button>
+            {!inicioTriaje && (
+              <small style={{ color: 'var(--text-muted)', display: 'block', textAlign: 'center', marginTop: 6 }}>
+                Primero marca "Iniciar triaje" arriba para poder guardarlo.
+              </small>
+            )}
+          </>
         )}
       </form>
     </Modal>
