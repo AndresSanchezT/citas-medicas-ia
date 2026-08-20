@@ -162,5 +162,8 @@ export function AppointmentActions({
       </div>
     );
   }
+  if (appointment.estado === 'REPROGRAMADA') {
+    return <span style={{ color: 'var(--text-muted)' }}>Esta cita ya fue reprogramada</span>;
+  }
   return <span style={{ color: 'var(--text-muted)' }}>—</span>;
 }

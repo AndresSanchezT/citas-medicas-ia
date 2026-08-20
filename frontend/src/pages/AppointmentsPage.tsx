@@ -28,7 +28,9 @@ interface NewAppointmentForm {
 export function AppointmentsPage() {
   const queryClient = useQueryClient();
   const { usuario } = useAuth();
-  const [filtroEstado, setFiltroEstado] = useState('');
+  // Por defecto se filtra a "Pendiente": es lo que recepción necesita ver primero al
+  // entrar (a quién falta atender), en vez de la lista completa con citas ya resueltas.
+  const [filtroEstado, setFiltroEstado] = useState('PENDIENTE');
   const [filtroDoctor, setFiltroDoctor] = useState('');
   const [filtroEspecialidad, setFiltroEspecialidad] = useState('');
   const [filtroFechaDesde, setFiltroFechaDesde] = useState('');
