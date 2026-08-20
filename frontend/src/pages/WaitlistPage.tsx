@@ -14,6 +14,7 @@ import { fetchDoctors } from '../api/doctors';
 import { fetchSpecialties } from '../api/specialties';
 import { fetchSlots } from '../api/schedules';
 import { Modal } from '../components/Modal';
+import { SlotCalendarPicker } from '../components/SlotCalendarPicker';
 import * as ui from '../components/ui';
 
 interface NewEntryForm {
@@ -296,17 +297,11 @@ export function WaitlistPage() {
           </select>
 
           <label>Cupo disponible</label>
-          <select
-            value={assignSlotId ?? ''}
-            onChange={(e) => setAssignSlotId(Number(e.target.value))}
-            style={ui.input}
-            disabled={!assignDoctorId}
-          >
-            <option value="" disabled>{disponibles.length ? 'Seleccionar...' : 'Sin cupos disponibles'}</option>
-            {disponibles.map((s) => (
-              <option key={s.id} value={s.id}>{s.fecha.split('T')[0]} — {s.horaInicio}</option>
-            ))}
-          </select>
+          {assignDoctorId ? (
+            <SlotCalendarPicker slots={disponibles} value={assignSlotId} onChange={setAssignSlotId} />
+          ) : (
+            <p style={{ fontSize: 12.5, color: 'var(--text-muted)' }}>Elige primero un médico.</p>
+          )}
 
           <div style={{ display: 'flex', gap: 8 }}>
             <button type="button" style={{ ...ui.secondaryButton, flex: 1 }} onClick={closeAssign}>
